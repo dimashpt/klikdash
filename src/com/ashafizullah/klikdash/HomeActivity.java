@@ -43,6 +43,12 @@ import android.widget.GridView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -265,7 +271,12 @@ public class HomeActivity extends Activity {
         super.onResume();
         if (Theme.stale(this, themeBuilt)) return;
         QuranService.listeners.add(onQuran);
-        reloadPrefs();
+        // Jangan reloadPrefs di setiap resume: apply() async + MODE_MULTI_PROCESS bisa baca disk lama
+        // setelah buka app lain, sehingga ubin kembali ke default. Reload hanya setelah bangun (ACC) atau Pengaturan.
+        if (prefsReloadOnResume) {
+            prefsReloadOnResume = false;
+            reloadPrefs();
+        }
         onQuran.run();
         updateTime();
         prayerView.startTicking();
@@ -362,6 +373,7 @@ public class HomeActivity extends Activity {
 
     void openSettings() {
         userLaunch = true;
+        prefsReloadOnResume = true;
         startActivity(new Intent(this, SettingsActivity.class));
     }
 
@@ -379,6 +391,8 @@ public class HomeActivity extends Activity {
 
     /** true bila aplikasi di depan dibuka lewat KlikDash (ubin/daftar), bukan muncul sendiri. */
     boolean userLaunch;
+    /** Muat ulang ubin/lokasi dari disk di onResume berikutnya (Pengaturan mengubah prefs). */
+    boolean prefsReloadOnResume;
     /** Awal jendela "baru menyala": boot (0) atau saat bangun dari tidur (ACC on). */
     long wakeAt;
 
@@ -423,16 +437,24 @@ public class HomeActivity extends Activity {
 
     // ---------------------------------------------------------------- data
 
-    /**
-     * Prefs di penyimpanan DE; pindahkan sekali dari CE (versi lama) begitu CE sudah terbuka.
-     * MODE_MULTI_PROCESS: baca ulang dari disk bila filenya berubah. Headunit dengan fast boot memulihkan isi RAM
-     * lama saat ACC on; tanpa ini susunan ubin lama di memori tampil lagi, lalu tertulis menimpa yang tersimpan.
-     */
-    @SuppressWarnings("deprecation")
+    static final String PREFS_NAME = "klikdash";
+    static final String PREFS_CE_MIGRATED = "prefs_ce_migrated";
+
+    /** Prefs di penyimpanan DE; pindahkan sekali dari CE (versi lama) begitu CE sudah terbuka. */
     SharedPreferences openPrefs() {
         Context de = createDeviceProtectedStorageContext();
-        if (getSystemService(UserManager.class).isUserUnlocked()) de.moveSharedPreferencesFrom(this, "klikdash");
-        return de.getSharedPreferences("klikdash", MODE_MULTI_PROCESS);
+        if (getSystemService(UserManager.class).isUserUnlocked()) {
+            SharedPreferences boot = de.getSharedPreferences(PREFS_CE_MIGRATED, MODE_PRIVATE);
+            if (!boot.getBoolean("done", false)) {
+                de.moveSharedPreferencesFrom(this, PREFS_NAME);
+                boot.edit().putBoolean("done", true).commit();
+            }
+        }
+        return de.getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+    }
+
+    File slotsFile() {
+        return new File(createDeviceProtectedStorageContext().getFilesDir(), "home_slots.tsv");
     }
 
     /** Ambil ulang ubin dan lokasi dari disk (lihat openPrefs), juga perubahan dari Pengaturan. */
@@ -441,6 +463,7 @@ public class HomeActivity extends Activity {
         loadSlots();
         loadLocation();
         prayDayKey = -1;
+        for (Tile t : tiles) if (t != null) t.invalidate();
     }
 
     /** Setelah CE terbuka: aplikasi non-directBoot (mis. Maps, Al-Qur'an) baru terlihat oleh PackageManager. */
@@ -458,40 +481,100 @@ public class HomeActivity extends Activity {
     };
 
     void loadSlots() {
+        if (loadSlotsFromFile()) {
+            migrateSlotLabels();
+            return;
+        }
+        boolean any = false;
         for (int i = 0; i < SLOTS; i++) {
             String s = prefs.getString("s" + i, null);
             if (s == null) {
                 slotCn[i] = DEFAULTS[i][0] != null ? ComponentName.unflattenFromString(DEFAULTS[i][0]) : null;
                 slotLabel[i] = DEFAULTS[i][1];
             } else {
+                any = true;
                 slotCn[i] = s.isEmpty() ? null : ComponentName.unflattenFromString(s); // "" = slot kosong
                 slotLabel[i] = prefs.getString("l" + i, null);
-                // v1.3: ubin pengaturan mobil berganti nama jadi SISTEM (Pengaturan kini milik KlikDash).
-                if ("PENGATURAN".equals(slotLabel[i]) && slotCn[i] != null
-                        && "com.android.car.setting".equals(slotCn[i].getPackageName())) {
-                    slotLabel[i] = "SISTEM";
-                    prefs.edit().putString("l" + i, "SISTEM").apply();
-                }
             }
         }
+        migrateSlotLabels();
+        if (any) persistSlots();
+    }
+
+    /** File TSV di DE: sumber kebenaran ubin (MODE_MULTI_PROCESS di beberapa HU tidak menulis s0… ke XML). */
+    boolean loadSlotsFromFile() {
+        File f = slotsFile();
+        if (!f.isFile()) return false;
+        try (BufferedReader r = new BufferedReader(new FileReader(f))) {
+            for (int i = 0; i < SLOTS; i++) {
+                String line = r.readLine();
+                if (line == null) return false;
+                int tab = line.indexOf('\t');
+                String flat = tab >= 0 ? line.substring(0, tab) : line;
+                String lab = tab >= 0 && tab + 1 < line.length() ? line.substring(tab + 1) : "";
+                slotCn[i] = flat.isEmpty() ? null : ComponentName.unflattenFromString(flat);
+                slotLabel[i] = lab.isEmpty() ? null : lab;
+            }
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    void writeSlotsFile() {
+        File f = slotsFile();
+        File tmp = new File(f.getParentFile(), f.getName() + ".tmp");
+        try (FileOutputStream os = new FileOutputStream(tmp)) {
+            for (int i = 0; i < SLOTS; i++) {
+                String flat = slotCn[i] != null ? slotCn[i].flattenToString() : "";
+                String lab = slotLabel[i] != null ? slotLabel[i] : "";
+                os.write((flat + "\t" + lab + "\n").getBytes(StandardCharsets.UTF_8));
+            }
+            os.getFD().sync();
+        } catch (IOException e) {
+            return;
+        }
+        if (!tmp.renameTo(f)) tmp.delete();
+    }
+
+    void migrateSlotLabels() {
+        for (int i = 0; i < SLOTS; i++) {
+            if ("PENGATURAN".equals(slotLabel[i]) && slotCn[i] != null
+                    && "com.android.car.setting".equals(slotCn[i].getPackageName())) {
+                slotLabel[i] = "SISTEM";
+            }
+        }
+    }
+
+    void persistSlots() {
+        writeSlotsFile();
+        SharedPreferences.Editor e = prefs.edit();
+        for (int i = 0; i < SLOTS; i++) putSlot(e, i, slotCn[i], slotLabel[i]);
+        e.commit();
     }
 
     /** {@code label} null: pakai nama aplikasi. */
     void saveSlot(int i, ComponentName cn, String label) {
         slotCn[i] = cn;
         slotLabel[i] = label;
-        SharedPreferences.Editor e = prefs.edit().putString("s" + i, cn != null ? cn.flattenToString() : "");
-        if (label != null) e.putString("l" + i, label); else e.remove("l" + i);
-        e.apply();
+        persistSlots();
     }
 
     void swapSlots(int a, int b) {
-        ComponentName ca = slotCn[a];
-        String la = slotLabel[a];
-        saveSlot(a, slotCn[b], slotLabel[b]);
-        saveSlot(b, ca, la);
+        ComponentName ca = slotCn[a], cb = slotCn[b];
+        String la = slotLabel[a], lb = slotLabel[b];
+        slotCn[a] = cb;
+        slotLabel[a] = lb;
+        slotCn[b] = ca;
+        slotLabel[b] = la;
+        persistSlots();
         tiles[a].invalidate();
         tiles[b].invalidate();
+    }
+
+    static void putSlot(SharedPreferences.Editor e, int i, ComponentName cn, String label) {
+        e.putString("s" + i, cn != null ? cn.flattenToString() : "");
+        if (label != null) e.putString("l" + i, label); else e.remove("l" + i);
     }
 
     void loadApps() {
