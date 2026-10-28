@@ -7,9 +7,12 @@ phone's hotspot) during the first setup.
 
 > ⚠️ **Do this with the car parked.** Do not operate the screen while driving.
 >
-> The app's own interface is in Indonesian; the button names below are shown as they appear on screen.
+> The app starts in Indonesian; the button names below are shown as they appear on screen in Indonesian. To switch
+> the interface to English, open **⚙ › Launcher › BAHASA** and tap **ENGLISH**.
 
 ▶️ Prefer video? Watch the **[5-minute install tutorial on YouTube](https://youtu.be/sSRKIyC3Ato)** (Indonesian, with subtitles).
+
+📺 All KlikDash videos (install, TANYA AI, TinyFish web search, updates, USB debugging, Wireless debugging) are in the **[YouTube playlist](https://www.youtube.com/playlist?list=PLEAZ252hW8a4)**.
 
 ## What you need
 
@@ -45,12 +48,53 @@ button. Tap it.
 ![Pick KlikDash as the home app](img/home-settings.png)
 
 **Seeing "Belum berhasil. Aktifkan USB debugging" ("not done yet, turn on USB debugging")?** The headunit's
-developer options are off. Turn them on:
+developer options are off. ▶️ Watch the **[USB debugging video](https://youtu.be/eVMA64kG_H8)** (2 minutes, Indonesian
+with subtitles), or turn them on:
 1. Open **Settings › About** (or *Device info*) and tap **Build number / Version** 7 times until you see
    *"You are now a developer"*. Some headunits ask for a factory code here. It is usually in the manual or
    available from the seller (often `8888`, `3368` or `1234`).
 2. Open **Settings › Developer options** and turn on **USB debugging**.
 3. Go back to KlikDash and tap the yellow button again.
+
+**Asked "Allow USB debugging?"** after tapping the yellow button? That is the headunit asking whether KlikDash
+may use its ADB. Tick **Always allow** and tap **OK**. It is asked only once.
+
+**USB debugging is on, but ADB is not open yet (port 5555)?** Common on Android 11 and later headunits: ADB
+only listens on the USB cable and is not yet open to apps on the headunit itself. KlikDash can open it without a
+computer over **Wireless debugging** (▶️ **[video tutorial](https://youtu.be/qDb4Irg5wok)**, 3 minutes, Indonesian with subtitles): tap **Start** on the *Open ADB without a computer* offer, then:
+
+1. Connect the headunit to WiFi, for example your phone's hotspot.
+2. In **Developer options** (opened for you), turn on **Wireless debugging** and allow the network, then tap
+   **Pair device with pairing code**.
+3. Leave the code dialog open. Pull down the notification panel, tap **ENTER CODE** on the KlikDash
+   notification, and type the 6-digit code.
+4. Settings closes by itself and KlikDash comes back. Wireless debugging is turned off again automatically.
+
+If the headunit was paired before (Android remembers it for up to 7 days), step 3 is skipped: just turn on
+Wireless debugging. If the pairing dialog isn't found, type the port and the code together (for example
+`37215 482913`, the port is shown below the code). For **Power Saver**, tap the *ADB not open yet* message on that
+tab: port 5555 is opened too, until the headunit restarts.
+
+Headunits without a Wireless debugging menu (or Android 10 and older) need a computer with
+[Android platform-tools](https://developer.android.com/tools/releases/platform-tools):
+
+1. Connect the headunit and the computer to the same WiFi (for example your phone's hotspot).
+2. On the headunit, open **Settings › Developer options › Wireless debugging**, turn it on, then tap
+   **Pair device with pairing code**. Note the address (`IP:port`) and the 6-digit code.
+3. On the computer, run:
+   ```
+   adb pair IP:PAIRING_PORT CODE
+   adb connect IP:PORT
+   adb tcpip 5555
+   ```
+   `IP:PORT` is the address shown on the main Wireless debugging page (not the pairing address).
+   If the headunit's USB port can be connected to a computer, just plug in the cable and run `adb tcpip 5555`.
+4. Go back to KlikDash, tap the yellow button again, and allow it as above.
+
+The home screen choice is saved permanently, so this is needed only once. Port 5555 closes again when the
+headunit restarts, so **Power Saver** and the automatic tweaks (ksmd, Zlink) stop working until it is opened
+again. To keep it open, also run `adb shell setprop persist.adb.tcp.port 5555` (not every firmware allows it).
+Open ADB gives full access to the headunit: connect it only to a private network, never to public WiFi.
 
 ## 4. Allow location
 
@@ -100,7 +144,13 @@ working.**
 - **Open an app:** tap its tile.
 - **Change a tile's app:** long-press the tile, release in place, then pick an app.
 - **Swap two tiles:** long-press a tile, drag it onto another one, and release.
-- **All apps:** tap the **SEMUA** tile. Long-press an app there to open its info (for example to uninstall).
+- **All apps:** tap the **SEMUA** tile. Tap **CARI APLIKASI** ("search apps") and type part of a name to filter;
+  when one app is left, the keyboard's search key opens it. Long-press an app there to open its info (for example to
+  uninstall).
+- **Bigger tiles:** tap **⚙**, then under **JUMLAH PINTASAN** (number of shortcuts) pick 9, 6 or 4 (default 12,
+  including SEMUA). Fewer tiles means a bigger clock, speed, date and prayer
+  times on the left, and bigger tiles, icons and text. Hidden shortcuts are kept and come back when you
+  raise the number again.
 - **CPU temperature** at the top left turns amber from 70 °C and red ("PANAS", hot) from 85 °C.
 
 ## Power saver (Hemat Daya)
@@ -120,23 +170,37 @@ again to allow it, or **KEMBALIKAN SEMUA** ("restore all") to undo everything. S
 are deliberately left out so navigation and CarPlay keep working. This needs USB debugging on, like the
 home-screen button.
 
-## Voice assistant (TANYA)
+## Voice assistant (TANYA AI)
 
-Optional. TANYA understands short commands in Indonesian, such as *"putar surat Yasin"* (play Surah Yasin),
+▶️ Prefer video? Watch the **[6-minute TANYA AI setup tutorial on YouTube](https://youtu.be/v9Bm6FzUKm8)** (Indonesian, with subtitles):
+API key for Claude or an OpenAI-compatible service, the free Android voice, and your first voice command.
+
+[![TANYA AI setup tutorial on YouTube](img/video-tanya-ai.png)](https://youtu.be/v9Bm6FzUKm8)
+
+Optional. TANYA AI understands short commands in Indonesian, such as *"putar surat Yasin"* (play Surah Yasin),
 *"navigasi ke masjid terdekat pakai Waze"*, *"buka Zlink"* or *"stop murottalnya"*, and answers out loud.
 
 1. Get an API key from [console.anthropic.com](https://console.anthropic.com) (Claude) or from any
-   OpenAI-compatible provider, and one from [elevenlabs.io](https://elevenlabs.io) for the voice. Give the
-   ElevenLabs key the *Text to Speech*, *Speech to Text* and *Voices* permissions.
+   OpenAI-compatible provider. ElevenLabs ([elevenlabs.io](https://elevenlabs.io)) is optional; its key needs the
+   *Text to Speech*, *Speech to Text* and *Voices* permissions.
 2. Open **⚙ › ASISTEN AI**, tap **+ CLAUDE** (or **+ OPENAI-COMPATIBLE**), paste the key, tap
    **PILIH MODEL** to pick a model (Claude Haiku 5.5 is the fastest), then **SIMPAN** and **UJI**.
    Typing a long key on the headunit is tedious: tap the field, then from a computer run
    `adb shell input text 'YOUR_KEY'`.
-3. Under **SUARA ELEVENLABS**, tap **API KEY** and paste the ElevenLabs key. An Indonesian voice is set for you;
-   **SUARA** picks another one, and **DENGAR** plays a sample.
-4. Put TANYA on the home screen: long-press a home shortcut, release it in place and pick **Tanya**.
+3. Voice: under **SUARA JAWABAN** and **PENGENALAN SUARA**, **ANDROID** is free; the description names the Android
+   app in use. If that app isn't installed yet, tap **PASANG** to open it in the Play Store (Speech Recognition &
+   Synthesis for the voice, the Google app for recognition); in Speech Recognition & Synthesis, download the
+   Indonesian voice so answers are spoken offline. **DENGAR** plays a sample. For ElevenLabs instead, tap
+   **API KEY** under **SUARA ELEVENLABS** and paste its key; the **ELEVENLABS** buttons only become available after
+   that, an Indonesian voice is set for you, and **SUARA** picks another one.
+4. Web search: TANYA AI looks up current information (news, prices, weather, schedules) when needed. Official Claude
+   profiles can search right away through Anthropic's web search, billed to the Claude account ($10 per 1,000
+   searches). To have every profile search through TinyFish (free), create an API key at
+   [agent.tinyfish.ai](https://agent.tinyfish.ai), then under **PENCARIAN WEB** tap **KEY TINYFISH**, paste it, and
+   make sure **AKTIF** is selected.
+5. Put TANYA AI on the home screen: long-press a home shortcut, release it in place and pick **Tanya AI**.
 
-![TANYA answering a command](img/tanya.png)
+![TANYA AI answering a command](img/tanya.png)
 
 Keys are stored encrypted on the headunit and are only sent to the provider you set. Usage is billed to your own
 accounts.
@@ -184,5 +248,5 @@ The GPS has no fix yet, for example in a basement or garage. The number comes ba
 GPS speed can differ slightly from the car's speedometer, which usually reads a little high.
 
 **Prayer times differ from the mosque by about a minute.**
-They are calculated with the Kemenag method and can differ by about a minute. Follow your local mosque or
-authority.
+They are calculated with the Kemenag method, or JAKIM when the headunit's time zone is Malaysia (choose in
+**⚙ › Launcher › Prayer times**), and can differ by about a minute. Follow your local mosque or authority.

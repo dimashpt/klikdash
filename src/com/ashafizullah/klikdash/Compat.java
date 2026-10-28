@@ -33,6 +33,26 @@ final class Compat {
      * bila tidak ada, instans bawaan file (ditebalkan bila wght ≥ 600).
      */
     static Typeface font(AssetManager am, String file, String axes, Typeface fallback) {
+        String key = file + '|' + axes;
+        synchronized (FONTS) {
+            Typeface t = FONTS.get(key);
+            if (t == null) {
+                t = load(am, file, axes);
+                if (t == null) return fallback;
+                FONTS.put(key, t);
+            }
+            return t;
+        }
+    }
+
+    /**
+     * Font yang sudah dimuat, per file + sumbu. Tiap aktivitas (dan tiap recreate, mis. ganti tema) memakai font yang
+     * sama; tanpa cache, display.ttf (±300 KB) dibaca ulang dari APK beberapa kali per layar.
+     */
+    private static final java.util.Map<String, Typeface> FONTS = new java.util.HashMap<>();
+
+    /** null bila gagal. */
+    private static Typeface load(AssetManager am, String file, String axes) {
         try {
             if (Build.VERSION.SDK_INT >= 28) {
                 Typeface.Builder b = new Typeface.Builder(am, file);
@@ -55,7 +75,7 @@ final class Compat {
                 }
             }
         } catch (Exception ignored) { }
-        return fallback;
+        return null;
     }
 
     /** Android 8+ melarang startService dari latar untuk layanan yang akan foreground; Android 7 belum mengenalnya. */
@@ -70,6 +90,23 @@ final class Compat {
         NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm.getNotificationChannel(channel) == null)
             nm.createNotificationChannel(new NotificationChannel(channel, name, NotificationManager.IMPORTANCE_LOW));
+        return new Notification.Builder(c, channel);
+    }
+
+    /**
+     * Notifikasi penting tanpa suara (mis. pengingat sholat): channel IMPORTANCE_HIGH supaya muncul di atas aplikasi
+     * lain, tanpa bunyi dan getar. Android 7 tanpa channel: prioritas tinggi, tampil di panel notifikasi.
+     */
+    @SuppressWarnings("deprecation")
+    static Notification.Builder alertNotification(Context c, String channel, String name) {
+        if (!O) return new Notification.Builder(c).setPriority(Notification.PRIORITY_HIGH);
+        NotificationManager nm = (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm.getNotificationChannel(channel) == null) {
+            NotificationChannel ch = new NotificationChannel(channel, name, NotificationManager.IMPORTANCE_HIGH);
+            ch.setSound(null, null);
+            ch.enableVibration(false);
+            nm.createNotificationChannel(ch);
+        }
         return new Notification.Builder(c, channel);
     }
 

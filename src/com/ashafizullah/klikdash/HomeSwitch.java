@@ -12,11 +12,11 @@ import android.provider.Settings;
 
 /**
  * Menjadikan KlikDash tampilan utama, atau kembali ke launcher bawaan. Firmware NWD mengabaikan pilihan
- * "Aplikasi home" Android dan memakai property {@link #NWD_PROP}, yang diatur lewat ADB perangkat sendiri.
+ * "Aplikasi home" Android dan memakai property {@link #NWD_PROP}, yang diatur lewat ADB perangkat sendiri
+ * (bila adbd meminta autentikasi, Android sekali menanyakan izin untuk kunci KlikDash).
  */
 final class HomeSwitch {
     static final String NWD_PROP = "persist.nwd.launcher.default";
-    static final String NEED_ADB = "Belum berhasil. Aktifkan USB debugging di Opsi pengembang, lalu coba lagi.";
 
     private HomeSwitch() { }
 
@@ -32,8 +32,12 @@ final class HomeSwitch {
         }
     }
 
+    /** getprop menjalankan proses: cukup sekali per proses, firmware tidak berubah selama berjalan. */
+    private static volatile Boolean nwd;
+
     static boolean isNwd() {
-        return "true".equals(getprop("ro.nwd.start.launcher.by.fw")) || !getprop(NWD_PROP).isEmpty();
+        if (nwd == null) nwd = "true".equals(getprop("ro.nwd.start.launcher.by.fw")) || !getprop(NWD_PROP).isEmpty();
+        return nwd;
     }
 
     static boolean isDefault(Context c) {
@@ -51,11 +55,31 @@ final class HomeSwitch {
         }
         String cur = getprop(NWD_PROP), me = a.getPackageName();
         if (!cur.isEmpty() && !cur.equals(me)) prefs.edit().putString("nwdPrev", cur).apply();
-        Tweaks.shellAsync("setprop " + NWD_PROP + " " + me + "; cmd package set-home-activity " + me + "/.HomeActivity",
-                ok -> a.runOnUiThread(() -> {
+        String cmd = "setprop " + NWD_PROP + " " + me + "; cmd package set-home-activity " + me + "/.HomeActivity";
+        Tweaks.askAsync(cmd,
+                () -> Notice.info(a, a.getString(R.string.home_adb_allow)),
+                r -> a.runOnUiThread(() -> {
                     if (done != null) done.run();
-                    if (isDefault(a)) Notice.ok(a, "KlikDash sekarang tampilan utama"); else Notice.fail(a, NEED_ADB);
+                    if (isDefault(a)) Notice.ok(a, a.getString(R.string.home_default_ok));
+                    // Port 5555 tertutup (Android 11+): coba lewat Wireless debugging, tanpa komputer.
+                    else if (!AdbWifiService.offer(a, r, cmd, false, w -> {
+                        if (done != null) done.run();
+                        if (isDefault(a)) Notice.ok(a, a.getString(R.string.home_default_ok));
+                        else if (w == Tweaks.DONE) Notice.fail(a, a.getString(R.string.home_setprop_failed));
+                        // Dibatalkan/gagal: video Wireless debugging, dan cara lewat komputer di pesannya.
+                        else HelpVideo.fail(a, a.getString(R.string.home_need_adb_port), HelpVideo.WIRELESS);
+                    })) HelpVideo.fail(a, a.getString(failure(a, r)), HelpVideo.forAdb(a, r));
                 }));
+    }
+
+    /**
+     * Pesan bila ADB gagal: USB debugging mati, port 5555 tertutup meski USB debugging menyala, kunci KlikDash belum
+     * diizinkan, atau perintahnya ditolak firmware.
+     */
+    static int failure(Context c, int adbResult) {
+        if (adbResult == Tweaks.NOT_ALLOWED) return R.string.home_adb_denied;
+        if (adbResult == Tweaks.NO_ADB) return Tweaks.debuggingOn(c) ? R.string.home_need_adb_port : R.string.home_need_adb;
+        return R.string.home_setprop_failed;
     }
 
     static void restore(Activity a, SharedPreferences prefs) {
@@ -64,17 +88,17 @@ final class HomeSwitch {
             return;
         }
         new AlertDialog.Builder(a)
-                .setMessage("Kembali ke launcher bawaan? KlikDash tetap terpasang dan bisa dijadikan tampilan utama lagi "
-                        + "dari tombol di home-nya.")
-                .setNegativeButton("Batal", null)
-                .setPositiveButton("Kembali", (dlg, w) -> {
+                .setMessage(R.string.home_restore_message)
+                .setNegativeButton(R.string.common_cancel, null)
+                .setPositiveButton(R.string.home_restore_confirm, (dlg, w) -> {
                     String prev = prefs.getString("nwdPrev", "com.android.launcher");
                     ComponentName stock = stockHome(a, prev);
-                    Tweaks.shellAsync("setprop " + NWD_PROP + " " + prev
+                    Tweaks.askAsync("setprop " + NWD_PROP + " " + prev
                                     + (stock != null ? "; cmd package set-home-activity " + stock.flattenToShortString() : "")
                                     + "; input keyevent KEYCODE_HOME",
-                            ok -> {
-                                if (!ok) Notice.fail(a, NEED_ADB);
+                            () -> Notice.info(a, a.getString(R.string.home_adb_allow)),
+                            r -> {
+                                if (r != Tweaks.DONE) HelpVideo.fail(a, a.getString(failure(a, r)), HelpVideo.forAdb(a, r));
                             });
                 })
                 .show();

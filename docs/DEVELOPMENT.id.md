@@ -9,24 +9,17 @@ klikdash/
 ├── AndroidManifest.xml
 ├── build.sh                  build + pasang ke headunit
 ├── klikdash.keystore         kunci tanda tangan APK (jangan hilang, lihat Catatan)
-├── src/com/ashafizullah/klikdash/
-│   ├── HomeActivity.java     launcher: pintasan, jam, sholat, suhu, drag & drop
-│   ├── PrayerTimes.java      perhitungan jadwal sholat (algoritma praytimes.org)
-│   ├── QuranActivity.java    tampilan mushaf + pemutar
-│   ├── QuranService.java     pemutar murattal di latar
-│   ├── QuranData.java        pemuat assets/quran.txt
-│   ├── DzikirActivity.java   dzikir pagi & petang dengan penghitung berpanduan
-│   ├── SettingsActivity.java pengaturan bertab: launcher, Hemat Daya, asisten AI
-│   ├── AiPanel.java          tab Asisten AI: profil, model, pemilih suara & model ElevenLabs
-│   ├── Updater.java          cek update dari GitHub Releases, cek tanda tangan, pasang
-│   ├── HomeSwitch.java       jadikan KlikDash tampilan utama / kembali ke launcher bawaan
-│   ├── PowerPanel.java       tab Hemat Daya: larang aplikasi berjalan di latar
-│   ├── AskActivity.java      pintasan TANYA: asisten suara untuk perintah mobil
-│   ├── AiClient.java         loop tool-use AI (Claude Messages API / OpenAI-compatible)
-│   ├── AiTools.java          perintah mobil yang boleh dijalankan AI (buka aplikasi, navigasi, murattal, volume…)
-│   ├── AiStore.java          profil AI; API key dienkripsi dengan Android Keystore
-│   ├── AiVoice.java          suara: ElevenLabs atau TTS Android, cadangan ElevenLabs Scribe
-│   └── Tweaks.java           perintah sistem lewat ADB lokal (ksmd, sembunyikan Zlink, launcher, appops)
+├── src/com/ashafizullah/klikdash/   dikelompokkan per fitur; tiap kelas diawali komentar penjelasan
+│   ├── Home*.java, Hijri, Welcome, ScreenLock   launcher: ubin, laci, panel jam, tanggal Hijriah, sambutan, kunci PIN
+│   ├── Prayer*.java, Clock      jadwal sholat (parameter Kemenag RI), pengingat sholat, jam dari GPS
+│   ├── Quran*.java              mushaf, pemutar murattal di latar
+│   ├── MediaNotch, MediaListener   notch pemutar di home: murattal, dzikir, musik aplikasi lain (MediaSession)
+│   ├── Dzikir*.java             dzikir pagi & petang: penghitung terpandu, pemutar audio di latar, unduhan audio
+│   ├── SettingsActivity, PowerPanel   Pengaturan: launcher, hemat daya
+│   ├── Ask*, Ai*.java           TANYA AI: suara, perintah mobil, profil & kunci API terenkripsi, tab pengaturan
+│   ├── Beam*.java               KlikBeam (beta): mirror layar HP lewat WiFi
+│   ├── Theme, Lang, Key, Notice   palet tema, bahasa antarmuka, tombol, notifikasi
+│   └── Updater, UpdatedReceiver, HomeSwitch, Tweaks, Compat   update, tampilan utama, ADB lokal, Android 7–8
 ├── res/                      tema, ikon vektor, sertifikat root ISRG untuk Android 7.0 (network_security.xml)
 ├── assets/
 │   ├── dzikir.json           dzikir pagi & petang, dibangun dari KlikBand (tools/build_dzikir.mjs)
@@ -36,7 +29,9 @@ klikdash/
 │   ├── arabic.ttf            Amiri Quran
 │   ├── serif.ttf             Literata (terjemahan; di-instance & subset)
 │   └── licenses/             teks SIL OFL tiap font (ikut terbawa di APK)
+├── audio/dzikir/             rekaman dzikir (MP3) + index.json, diunduh aplikasi — TIDAK ikut APK
 ├── tools/build_quran.py      bangun quran.txt dari JSON equran.id
+├── tools/build_dzikir_audio.py  potong & samakan level rekaman mentah ke audio/dzikir/ (butuh ffmpeg, numpy)
 ├── tools/build_static_fonts.py  bangun assets/static/ (butuh fonttools)
 ├── design/                   header README (header.html → header.png / header.id.png) + screenshot asli
 └── LICENSE                   MIT (kode); font tetap OFL
@@ -65,6 +60,7 @@ adb connect 192.168.1.17:5555
 ./build.sh release      # APK rilis publik tanpa teks Al-Qur'an → build/klikdash-<versi>.apk
 ./build.sh install      # build, pasang, beri izin lokasi, jadikan home
 DEVICE=1.2.3.4:5555 ./build.sh install   # kalau IP headunit berubah
+DEBUGGABLE=1 ./build.sh install          # build debuggable, perlu untuk uji TANYA AI lewat adb (lihat AskActivity)
 ```
 
 Selalu pasang lewat `./build.sh install`. Kalau memakai `adb install` biasa, preferensi home bisa hilang
@@ -112,6 +108,24 @@ Skrip ini juga membersihkan teks:
   U+08D6 (tanda ruku'), U+06D4 (pemisah juz), dan U+06D5 (tumpuan waqaf).
 - Menempelkan tanda waqaf ke kata sebelumnya.
 - Membuang karakter kontrol.
+
+Terjemahan Inggris (Saheeh International, dari alquran.cloud) diunduh terpisah ke `quran-en.txt` saat tampilan
+berbahasa Inggris. Untuk menyertakannya di build pengembang (tidak pernah di rilis):
+
+```bash
+python3 -I tools/build_quran.py --en assets/quran-en.txt
+```
+
+## Terjemahan antarmuka
+
+Tampilan berbahasa Indonesia (`res/values/strings_*.xml`, bawaan) dan Inggris (`res/values-en/strings_*.xml`),
+dipilih di **⚙ › Launcher › BAHASA**, tidak mengikuti bahasa sistem (`Lang.java`).
+- Setiap teks UI baru masuk ke **kedua** folder dengan nama yang sama. Pakai argumen posisional (`%1$s`) dan
+  `<plurals>` untuk bilangan. Jangan membandingkan atau menyimpan teks tampilan: simpan kunci terpisah.
+- Aktivitas dan `QuranService` membungkus context di `attachBaseContext`. Receiver dan context aplikasi
+  memanggil `Lang.wrap(c)` sebelum `getString`.
+- Asisten suara punya bahasa sendiri (`AiStore`, **⚙ › Asisten AI**). Prompt dan ucapannya ada di
+  `strings_assistant.xml` dan dibaca dengan `Lang.wrap(c, AiStore.lang(c))`.
 
 ## Cara kerja khusus firmware
 

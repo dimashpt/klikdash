@@ -9,25 +9,17 @@ klikdash/
 ├── AndroidManifest.xml
 ├── build.sh                  build + install on the headunit
 ├── klikdash.keystore         APK signing key (do not lose it, see Notes)
-├── src/com/ashafizullah/klikdash/
-│   ├── HomeActivity.java     launcher: tiles, clock, prayer times, temperature, drag & drop
-│   ├── PrayerTimes.java      prayer-time calculation (praytimes.org algorithm)
-│   ├── QuranActivity.java    mushaf view + player
-│   ├── QuranService.java     background recitation player
-│   ├── QuranData.java        loader for assets/quran.txt
-│   ├── DzikirActivity.java   morning & evening dhikr with a guided counter
-│   ├── SettingsActivity.java settings with tabs: launcher, power saver, AI assistant
-│   ├── AiPanel.java          AI assistant tab: profiles, model, ElevenLabs voice & model pickers
-│   ├── Updater.java          update check from GitHub Releases, signature check, install
-│   ├── HomeSwitch.java       make KlikDash the home screen / back to the stock launcher
-│   ├── PowerPanel.java       power saver tab: block apps from running in the background
-│   ├── AskActivity.java      TANYA tile: voice assistant for car commands
-│   ├── AiClient.java         AI tool-use loop (Claude Messages API / OpenAI-compatible)
-│   ├── AiTools.java          car commands the AI may run (open app, navigate, murattal, volume…)
-│   ├── AiStore.java          AI profiles; API keys encrypted with Android Keystore
-│   ├── AiVoice.java          speech: ElevenLabs or Android TTS, ElevenLabs Scribe fallback
-│   ├── Tweaks.java           system commands through local ADB (ksmd, hide Zlink, launcher, appops)
-│   └── Compat.java           Android 7–8 differences (fonts, audio focus, notification channel, services)
+├── src/com/ashafizullah/klikdash/   grouped by feature; each class starts with a comment explaining it
+│   ├── Home*.java, Hijri, Welcome, ScreenLock   launcher: tiles, drawer, clock panel, Hijri date, welcome card, PIN lock
+│   ├── Prayer*.java, Clock      prayer times (Kemenag RI parameters), prayer alerts, clock set from GPS
+│   ├── Quran*.java              mushaf, background recitation player
+│   ├── MediaNotch, MediaListener   home player notch: recitation, dhikr, other apps' music (MediaSession)
+│   ├── Dzikir*.java             morning & evening dhikr: guided counter, background audio player, audio download
+│   ├── SettingsActivity, PowerPanel   settings: launcher, power saver
+│   ├── Ask*, Ai*.java           TANYA AI: voice, car commands, profiles & encrypted API keys, settings tab
+│   ├── Beam*.java               KlikBeam (beta): phone screen mirroring over WiFi
+│   ├── Theme, Lang, Key, Notice   theme palette, interface language, buttons, notices
+│   └── Updater, UpdatedReceiver, HomeSwitch, Tweaks, Compat   updates, home screen switch, local ADB, Android 7–8
 ├── res/                      theme, vector icons, ISRG root certificates for Android 7.0 (network_security.xml)
 ├── assets/
 │   ├── dzikir.json           morning & evening dhikr, built from KlikBand (tools/build_dzikir.mjs)
@@ -38,7 +30,9 @@ klikdash/
 │   ├── serif.ttf             Literata (translation; instanced & subset)
 │   ├── static/               static instances of display/mono for Android 7–8.1 (tools/build_static_fonts.py)
 │   └── licenses/             SIL OFL text for each font (shipped inside the APK)
+├── audio/dzikir/             dhikr recordings (MP3) + index.json, downloaded by the app — NOT in the APK
 ├── tools/build_quran.py      builds quran.txt from equran.id JSON
+├── tools/build_dzikir_audio.py  trims & levels raw recordings into audio/dzikir/ (needs ffmpeg, numpy)
 ├── tools/build_static_fonts.py  builds assets/static/ (needs fonttools)
 ├── design/                   README header (header.html → header.png / header.id.png) + real screenshots
 └── LICENSE                   MIT (code); fonts stay under the OFL
@@ -67,6 +61,7 @@ adb connect 192.168.1.17:5555
 ./build.sh release      # public release APK without the Quran text → build/klikdash-<version>.apk
 ./build.sh install      # build, install, grant location, make it the home app
 DEVICE=1.2.3.4:5555 ./build.sh install   # if the headunit's IP changes
+DEBUGGABLE=1 ./build.sh install          # debuggable build, needed for the adb TANYA AI tests (see AskActivity)
 ```
 
 Always install with `./build.sh install`. With a plain `adb install`, the home preference can be lost until
@@ -114,6 +109,24 @@ The script also cleans the text:
   U+08D6 (ruku' sign), U+06D4 (juz separator), and U+06D5 (waqf carrier).
 - It attaches waqf marks to the preceding word.
 - It strips control characters.
+
+The English translation (Saheeh International, from alquran.cloud) is downloaded separately into
+`quran-en.txt` when the interface is in English. To embed it in a developer build (never in a release):
+
+```bash
+python3 -I tools/build_quran.py --en assets/quran-en.txt
+```
+
+## Translations
+
+The interface is in Indonesian (`res/values/strings_*.xml`, the default) and English
+(`res/values-en/strings_*.xml`), chosen in **⚙ › Launcher › BAHASA** and not from the system language (`Lang.java`).
+- Every new piece of UI text goes into **both** folders under the same name. Use positional arguments
+  (`%1$s`) and `<plurals>` for counts. Never compare or save displayed text: keep a separate key.
+- Activities and `QuranService` wrap their context in `attachBaseContext`. Receivers and the application context
+  call `Lang.wrap(c)` before `getString`.
+- The voice assistant has its own language (`AiStore`, **⚙ › Asisten AI**). Its prompts and spoken replies are in
+  `strings_assistant.xml` and are read with `Lang.wrap(c, AiStore.lang(c))`.
 
 ## Firmware-specific behaviour
 

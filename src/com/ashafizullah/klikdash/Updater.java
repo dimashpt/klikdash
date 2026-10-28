@@ -43,6 +43,27 @@ final class Updater {
 
     private Updater() { }
 
+    /**
+     * Catatan rilis (Markdown GitHub) sebagai teks biasa untuk dialog, hanya bagian berbahasa antarmuka ({@code en}):
+     * catatan rilis ditulis English lalu "**Bahasa Indonesia:**"; tanpa penanda itu (rilis lama) seluruhnya dipakai.
+     * Baris "Update with ⚙ › CEK UPDATE …" untuk pembaca GitHub dibuang (pengguna sedang di dialog update-nya),
+     * [teks](url) → teks, "- " → "• ", tanpa #, **, ` dan garis ---.
+     */
+    static String plainNotes(String md, boolean en) {
+        md = md.replace("\r", "");
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("(?im)^\\s*\\**\\s*Bahasa Indonesia\\s*:?\\s*\\**\\s*:?\\s*").matcher(md);
+        if (m.find()) md = en ? md.substring(0, m.start()) : md.substring(m.end());
+        String s = md.replaceAll("(?im)^Update with .*CEK UPDATE.*$", "")
+                .replaceAll("\\[([^\\]]*)\\]\\([^)]*\\)", "$1")
+                .replaceAll("(?m)^\\s*-{3,}\\s*$", "")
+                .replaceAll("(?m)^#+\\s*", "")
+                .replaceAll("(?m)^\\s*[-*] ", "• ")
+                .replaceAll("[*`]", "")
+                .replaceAll("\n{3,}", "\n\n");
+        return s.trim();
+    }
+
     /** Rilis terbaru, atau null bila tidak ada APK di rilisnya. Jalankan di thread latar. */
     static Release latest() throws Exception {
         Map<String, String> h = new HashMap<>();
@@ -92,7 +113,7 @@ final class Updater {
 
     static File download(Context c, Release r, Progress p) throws Exception {
         File dir = new File(c.getExternalFilesDir(null), "update");
-        if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("Penyimpanan tidak bisa ditulis");
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException(c.getString(R.string.update_err_storage));
         for (File old : dir.listFiles()) old.delete();
         File f = new File(dir, "klikdash-" + r.version + ".apk");
         // browser_download_url mengalihkan ke CDN GitHub; HttpURLConnection mengikuti pengalihan https→https.
@@ -101,7 +122,7 @@ final class Updater {
         con.setReadTimeout(30000);
         con.setRequestProperty("User-Agent", "KlikDash");
         try {
-            if (con.getResponseCode() >= 400) throw new IOException("Unduhan gagal (HTTP " + con.getResponseCode() + ")");
+            if (con.getResponseCode() >= 400) throw new IOException(c.getString(R.string.update_err_http, con.getResponseCode()));
             long total = con.getContentLengthLong() > 0 ? con.getContentLengthLong() : r.size;
             try (InputStream in = con.getInputStream(); OutputStream out = new FileOutputStream(f)) {
                 byte[] buf = new byte[32768];
@@ -125,12 +146,12 @@ final class Updater {
     static void verify(Context c, File apk, String version) throws Exception {
         PackageManager pm = c.getPackageManager();
         PackageInfo got = pm.getPackageArchiveInfo(apk.getPath(), PackageManager.GET_SIGNATURES);
-        if (got == null) throw new IOException("File APK rusak");
-        if (!c.getPackageName().equals(got.packageName)) throw new IOException("APK bukan KlikDash");
-        if (!version.equals(got.versionName)) throw new IOException("Versi APK tidak sesuai rilis");
+        if (got == null) throw new IOException(c.getString(R.string.update_err_corrupt));
+        if (!c.getPackageName().equals(got.packageName)) throw new IOException(c.getString(R.string.update_err_not_klikdash));
+        if (!version.equals(got.versionName)) throw new IOException(c.getString(R.string.update_err_version));
         PackageInfo me = pm.getPackageInfo(c.getPackageName(), PackageManager.GET_SIGNATURES);
         if (!sameSigners(me.signatures, got.signatures)) {
-            throw new IOException("Tanda tangan APK tidak cocok, pembaruan dibatalkan");
+            throw new IOException(c.getString(R.string.update_err_signature));
         }
     }
 

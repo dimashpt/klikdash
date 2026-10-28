@@ -1,6 +1,7 @@
 package com.ashafizullah.klikdash;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Paint;
@@ -47,22 +48,24 @@ import static com.ashafizullah.klikdash.HomeActivity.TEXT;
 
 /**
  * Dzikir pagi & petang dengan penghitung berpanduan. Data dari assets/dzikir.json, dibangun dari KlikBand
- * (tools/build_dzikir.mjs): urutan & jumlah dari Almanhaj, Latin mengikuti Hisnul Muslim, ayat dari Tanzil.
+ * (tools/build_dzikir.mjs): urutan & jumlah dari Almanhaj, Latin mengikuti Hisnul Muslim, ayat dari Tanzil Quran Text
+ * (Simple Plain, Version 1.1). Judul, arti, dan catatan punya versi English (title_en, meaning_en, note_en) untuk antarmuka English.
  */
 public class DzikirActivity extends Activity {
 
     static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT, WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
+    /** Kunci internal (JSON, prefs, extra "period", tool AI); teks tampilannya dari resource. */
     static final String PAGI = "pagi", PETANG = "petang";
 
     static final class Item {
         String title, arabic, latin, meaning, note;
         int count;
+        /** Potongan audio satu kali baca, diputar berurutan ({@link DzikirAudio#file}). */
+        String[] audio;
     }
 
     float dp, sp;
     Typeface fHeavy, fBold, fMono, fMonoBold, fArab, fSerif;
-    SharedPreferences prefs;
-    JSONObject data;
 
     String period;
     final List<Item> items = new ArrayList<>();
@@ -71,38 +74,75 @@ public class DzikirActivity extends Activity {
 
     ListView list;
     ItemAdapter adapter;
-    TextView step, arab, latin, meaning, note, title;
+    TextView step, arab, latin, meaning, note, title, npSub;
     ScrollView scroll;
-    Chip cPagi, cPetang;
+    Key cPagi, cPetang, cMode, kPlay;
     Counter counter;
+    /** Bacaan pemutar yang terakhir diikuti tampilan; -1: ikuti lagi (halaman baru tampil). */
+    int followed = -1;
+    /** Popup unduh disetujui dari tombol PUTAR: begitu audio lengkap, langsung putar. */
+    boolean playAfterDownload;
+    final Runnable onService = this::refreshPlayer;
+    /** Isi dialog Audio dzikir selagi terbuka: diisi ulang saat unduhan selesai (tombol UNDUH ULANG kembali aktif). */
+    Runnable audioDialog;
+    boolean audioDialogBusy;
 
     int themeBuilt;
 
     @Override protected void onResume() {
         super.onResume();
-        Theme.stale(this, themeBuilt);
+        if (Theme.stale(this, themeBuilt)) return;
+        DzikirService.listeners.add(onService);
+        followed = -1;
+        counts = loadCounts(); // bisa bertambah oleh pemutar selama halaman ini tidak tampil
+        show(cur);
+        refreshPlayer();
     }
+
+    @Override protected void onPause() {
+        DzikirService.listeners.remove(onService);
+        super.onPause();
+    }
+
+    @Override protected void attachBaseContext(Context base) { super.attachBaseContext(Lang.wrap(base)); }
 
     @Override protected void onCreate(Bundle b) {
         themeBuilt = Theme.apply(this);
         super.onCreate(b);
         dp = getResources().getDisplayMetrics().density;
         sp = getResources().getDisplayMetrics().scaledDensity;
-        prefs = getSharedPreferences("dzikir", MODE_PRIVATE);
         fHeavy = font("display.ttf", "'opsz' 72, 'wght' 800");
         fBold = font("display.ttf", "'opsz' 36, 'wght' 700");
         fMono = font("mono.ttf", "'wdth' 100, 'wght' 400");
         fMonoBold = font("mono.ttf", "'wdth' 100, 'wght' 700");
         fArab = font("arabic.ttf", null);
         fSerif = font("serif.ttf", null);
-        try {
-            data = new JSONObject(readAsset("dzikir.json"));
-        } catch (Exception e) {
-            data = new JSONObject();
-        }
+        DzikirService.loadMode(this);
         setContentView(buildUi());
         String p = getIntent().getStringExtra("period");
-        open(p != null ? p : currentPeriod(this));
+        open(p != null ? p : DzikirService.active ? DzikirService.period : currentPeriod(this));
+        if (DzikirAudio.ready(this) && !DzikirAudio.updateAsked) DzikirAudio.checkUpdate(this);
+        pruneCounts(this);
+    }
+
+    /** Hitungan hari-hari sebelumnya tidak dipakai lagi; tanpa ini file prefs bertambah dua kunci per hari. */
+    static void pruneCounts(Context c) {
+        SharedPreferences p = DzikirAudio.prefs(c);
+        String today = key(PAGI).substring(key(PAGI).lastIndexOf('_'));
+        SharedPreferences.Editor e = null;
+        for (String k : p.getAll().keySet()) {
+            if (k.startsWith("c_") && !k.endsWith(today)) {
+                if (e == null) e = p.edit();
+                e.remove(k);
+            }
+        }
+        if (e != null) e.apply();
+    }
+
+    @Override protected void onNewIntent(android.content.Intent i) {
+        super.onNewIntent(i);
+        String p = i.getStringExtra("period");
+        if (p != null && !p.equals(period)) open(p);
     }
 
     // ---------------------------------------------------------------- data
@@ -116,7 +156,7 @@ public class DzikirActivity extends Activity {
             if (la != null && lo != null) { lat = Double.parseDouble(la); lon = Double.parseDouble(lo); }
         } catch (NumberFormatException ignored) { }
         Calendar now = Calendar.getInstance();
-        int ashar = PrayerTimes.compute(now, lat, lon)[2];
+        int ashar = PrayerTimes.compute(now, lat, lon, PrayerTimes.method(hp))[2];
         int min = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE);
         return min < ashar ? PAGI : PETANG;
     }
@@ -124,46 +164,91 @@ public class DzikirActivity extends Activity {
     void open(String p) {
         period = p;
         items.clear();
-        JSONArray arr = data.optJSONArray(p);
+        items.addAll(items(this, p));
+        counts = loadCounts();
+        boolean here = DzikirService.active && p.equals(DzikirService.period);
+        cur = here ? Math.min(DzikirService.index, Math.max(0, items.size() - 1)) : firstUndone();
+        followed = here ? cur : -1;
+        cPagi.setOn(PAGI.equals(p));
+        cPetang.setOn(PETANG.equals(p));
+        title.setText(PAGI.equals(p) ? R.string.dzikir_title_pagi : R.string.dzikir_title_petang);
+        adapter.notifyDataSetChanged();
+        show(cur);
+        refreshPlayer();
+    }
+
+    private static JSONObject data;
+
+    /** assets/dzikir.json, dimuat sekali per proses; dipakai halaman ini, pemutar, dan unduhan audio. */
+    static synchronized JSONObject data(Context c) {
+        if (data == null) {
+            try (InputStream in = c.getAssets().open("dzikir.json")) {
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                byte[] buf = new byte[16384];
+                for (int k; (k = in.read(buf)) > 0; ) out.write(buf, 0, k);
+                data = new JSONObject(new String(out.toByteArray(), StandardCharsets.UTF_8));
+            } catch (Exception e) {
+                android.util.Log.w("KlikDash", "Muat dzikir.json gagal", e);
+                return new JSONObject();
+            }
+        }
+        return data;
+    }
+
+    /** Bacaan dzikir {@code p} dalam bahasa antarmuka. */
+    static List<Item> items(Context c, String p) {
+        List<Item> list = new ArrayList<>();
+        JSONArray arr = data(c).optJSONArray(p);
+        String sfx = Lang.en() ? "_en" : "";
         for (int i = 0; arr != null && i < arr.length(); i++) {
             JSONObject o = arr.optJSONObject(i);
             Item it = new Item();
             it.arabic = o.optString("arabic");
             it.latin = o.optString("latin");
-            it.title = o.optString("title", it.latin);
-            it.meaning = o.optString("meaning");
-            it.note = o.isNull("note") ? null : o.optString("note");
+            it.title = pick(o, "title", sfx, it.latin);
+            it.meaning = pick(o, "meaning", sfx, "");
+            it.note = pick(o, "note", sfx, null);
             it.count = Math.max(1, o.optInt("count", 1));
-            items.add(it);
+            JSONArray a = o.optJSONArray("audio");
+            it.audio = new String[a != null ? a.length() : 0];
+            for (int k = 0; k < it.audio.length; k++) it.audio[k] = a.optString(k);
+            list.add(it);
         }
-        counts = loadCounts();
-        cur = firstUndone();
-        cPagi.setOn(PAGI.equals(p));
-        cPetang.setOn(PETANG.equals(p));
-        title.setText(PAGI.equals(p) ? "DZIKIR PAGI" : "DZIKIR PETANG");
-        adapter.notifyDataSetChanged();
-        show(cur);
+        return list;
     }
 
-    /** Progres disimpan per hari dan per waktu, jadi keluar-masuk tidak mengulang hitungan. */
-    String key() {
+    /** Field dalam bahasa antarmuka (mis. "meaning_en"), atau versi Indonesia bila kosong. */
+    static String pick(JSONObject o, String key, String sfx, String fallback) {
+        if (!sfx.isEmpty() && !o.isNull(key + sfx)) return o.optString(key + sfx);
+        return o.isNull(key) ? fallback : o.optString(key);
+    }
+
+    /**
+     * Progres disimpan per hari dan per waktu, jadi keluar-masuk tidak mengulang hitungan. Pemutar
+     * ({@link DzikirService}) menambah hitungan di tempat yang sama.
+     */
+    static String key(String period) {
         return "c_" + period + "_" + new SimpleDateFormat("yyyyMMdd", Locale.US).format(new Date());
     }
 
-    int[] loadCounts() {
-        int[] c = new int[items.size()];
-        String[] f = prefs.getString(key(), "").split(",");
+    static int[] loadCounts(Context ctx, String period, int n) {
+        int[] c = new int[n];
+        String[] f = DzikirAudio.prefs(ctx).getString(key(period), "").split(",");
         for (int i = 0; i < c.length && i < f.length; i++) {
             try { c[i] = Integer.parseInt(f[i]); } catch (NumberFormatException ignored) { }
         }
         return c;
     }
 
-    void saveCounts() {
+    static void saveCounts(Context ctx, String period, int[] counts) {
         StringBuilder s = new StringBuilder();
         for (int i = 0; i < counts.length; i++) s.append(i > 0 ? "," : "").append(counts[i]);
-        prefs.edit().putString(key(), s.toString()).apply();
+        DzikirAudio.prefs(ctx).edit().putString(key(period), s.toString()).apply();
     }
+
+    int[] loadCounts() { return loadCounts(this, period, items.size()); }
+
+    void saveCounts() { saveCounts(this, period, counts); }
 
     boolean done(int i) { return counts[i] >= items.get(i).count; }
 
@@ -183,8 +268,7 @@ public class DzikirActivity extends Activity {
         if (items.isEmpty()) return;
         cur = Math.max(0, Math.min(i, items.size() - 1));
         Item it = items.get(cur);
-        step.setText(String.format(Locale.US, "BACAAN %02d / %02d  ·  %s  ·  %d×", cur + 1, items.size(),
-                it.title.toUpperCase(new Locale("id", "ID")), it.count));
+        step.setText(getString(R.string.dzikir_step, cur + 1, items.size(), it.title.toUpperCase(Lang.locale()), it.count));
         arab.setText(it.arabic);
         latin.setText(it.latin);
         meaning.setText(it.meaning);
@@ -222,6 +306,136 @@ public class DzikirActivity extends Activity {
         }
     }
 
+    // ---------------------------------------------------------------- audio
+
+    /** Pemutar sedang memegang dzikir yang tampil (pagi/petang yang sama). */
+    boolean here() { return DzikirService.active && period.equals(DzikirService.period); }
+
+    boolean playingHere() { return here() && DzikirService.playing; }
+
+    /** PUTAR/JEDA: bacaan yang tampil = bacaan pemutar: jeda/lanjut; selain itu putar bacaan yang tampil. */
+    void togglePlay() {
+        if (DzikirAudio.downloading) return;
+        if (!DzikirAudio.ready(this)) { askDownload(); return; }
+        if (here() && DzikirService.index == cur) DzikirService.send(this, DzikirService.ACTION_TOGGLE);
+        else DzikirService.play(this, period, cur);
+    }
+
+    /** ‹ / ›: saat diputar, pemutar ikut pindah bacaan (tampilan menyusul lewat refreshPlayer). */
+    void stepBy(int d) {
+        if (playingHere()) DzikirService.send(this, d > 0 ? DzikirService.ACTION_NEXT : DzikirService.ACTION_PREV);
+        else show(cur + d);
+    }
+
+    /** Saat dzikir diputar, ketuk bacaan di daftar langsung memutarnya; selain itu hanya membuka. */
+    void pickItem(int i) {
+        if (playingHere()) DzikirService.play(this, period, i);
+        show(i);
+    }
+
+    void askDownload() {
+        SettingsActivity.showDark(new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.dzikir_audio_title)
+                .setMessage(R.string.dzikir_audio_desc)
+                .setPositiveButton(R.string.dzikir_audio_download, (d, w) -> {
+                    playAfterDownload = true;
+                    DzikirAudio.download(this, false);
+                })
+                .setNegativeButton(R.string.quran_not_now, null));
+    }
+
+    void askUpdate() {
+        DzikirAudio.updateAsked = true;
+        SettingsActivity.showDark(new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.dzikir_update_title)
+                .setMessage(R.string.dzikir_update_desc)
+                .setPositiveButton(R.string.dzikir_audio_download, (d, w) -> DzikirAudio.download(this, false))
+                .setNegativeButton(R.string.quran_not_now, null));
+    }
+
+    /** Pilihan pemutaran (LANJUT / SATU BACAAN) dan unduh ulang audio. */
+    void showAudioDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(px(24), px(4), px(24), px(8));
+        Runnable[] fill = new Runnable[1];
+        fill[0] = () -> {
+            box.removeAllViews();
+            box.addView(caption(getString(R.string.dzikir_after)));
+            Key cont = chip(getString(R.string.dzikir_mode_continue), () -> { DzikirService.setSingle(this, false); fill[0].run(); });
+            cont.setOn(!DzikirService.single);
+            Key one = chip(getString(R.string.dzikir_mode_single), () -> { DzikirService.setSingle(this, true); fill[0].run(); });
+            one.setOn(DzikirService.single);
+            box.addView(chipRow(cont, one));
+            box.addView(hint(getString(DzikirService.single ? R.string.dzikir_hint_single : R.string.dzikir_hint_continue)));
+            box.addView(caption(getString(R.string.dzikir_audio_caption)));
+            Key dl = chip(getString(DzikirAudio.downloading ? R.string.dzikir_audio_busy : R.string.dzikir_audio_redownload), () -> {
+                DzikirAudio.download(this, true);
+                audioDialogBusy = DzikirAudio.downloading;
+                fill[0].run();
+            });
+            box.addView(chipRow(dl));
+            box.addView(hint(getString(R.string.dzikir_audio_credit)));
+        };
+        fill[0].run();
+        audioDialog = fill[0];
+        audioDialogBusy = DzikirAudio.downloading;
+        SettingsActivity.showDark(new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.dzikir_audio_menu)
+                .setView(box)
+                .setOnDismissListener(d -> audioDialog = null)
+                .setPositiveButton(R.string.quran_mode_done, null));
+    }
+
+    /** Status pemutar dan unduhan berubah: perbarui bar pemutar, ikuti bacaan dan hitungan dari pemutar. */
+    void refreshPlayer() {
+        if (kPlay == null || items.isEmpty()) return;
+        if (audioDialog != null && audioDialogBusy != DzikirAudio.downloading) {
+            audioDialogBusy = DzikirAudio.downloading;
+            audioDialog.run();
+        }
+        boolean ready = DzikirAudio.ready(this), here = here();
+        if (playAfterDownload && !DzikirAudio.downloading) {
+            playAfterDownload = false;
+            if (ready) { DzikirService.play(this, period, cur); return; }
+        }
+        kPlay.setLabel(getString(playingHere() ? R.string.dzikir_pause : R.string.dzikir_play));
+        cMode.setLabel(getString(DzikirService.single ? R.string.dzikir_mode_single : R.string.dzikir_mode_continue));
+        cMode.setOn(DzikirService.single);
+        int color = AMBER;
+        String s;
+        if (DzikirAudio.downloading) {
+            s = getString(R.string.dzikir_audio_downloading, DzikirAudio.done, DzikirAudio.total);
+        } else if (DzikirAudio.failed) {
+            s = getString(R.string.dzikir_audio_failed);
+        } else if (!ready) {
+            s = getString(R.string.dzikir_audio_none);
+            color = DIM;
+        } else if (here && DzikirService.missing) {
+            s = getString(R.string.dzikir_audio_missing);
+        } else if (here && DzikirService.reps > 0) {
+            s = (DzikirService.playing ? "▶  " : "❚❚  ") + getString(R.string.dzikir_now, DzikirService.index + 1,
+                    Math.min(DzikirService.rep + 1, DzikirService.reps), DzikirService.reps);
+            if (!DzikirService.playing) color = DIM;
+        } else {
+            s = getString(R.string.dzikir_audio_ready);
+            color = DIM;
+        }
+        npSub.setText(s);
+        npSub.setTextColor(color);
+        if (here) {
+            counts = loadCounts();
+            if (DzikirService.playing && DzikirService.index != followed) {
+                followed = DzikirService.index;
+                show(followed);
+            } else {
+                counter.invalidate();
+                adapter.notifyDataSetChanged();
+            }
+        }
+        if (DzikirAudio.update && !DzikirAudio.updateAsked && !DzikirAudio.downloading) askUpdate();
+    }
+
     // ---------------------------------------------------------------- layout
 
 
@@ -251,7 +465,7 @@ public class DzikirActivity extends Activity {
         measureScreen();
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(portrait ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
-        row.setBackgroundColor(BG);
+        Theme.fill(row);
         row.setFitsSystemWindows(true);
 
         // Kiri: judul, pilihan pagi/petang, daftar bacaan
@@ -260,12 +474,12 @@ public class DzikirActivity extends Activity {
         LinearLayout head = new LinearLayout(this);
         head.setOrientation(LinearLayout.VERTICAL);
         head.setPadding(px(24), px(20), px(24), px(14));
-        title = text("DZIKIR", fHeavy, 34, TEXT);
+        title = text(getString(R.string.dzikir_title), fHeavy, 34, TEXT);
         head.addView(title);
         LinearLayout chips = new LinearLayout(this);
         chips.setOrientation(LinearLayout.HORIZONTAL);
-        cPagi = new Chip("PAGI", () -> open(PAGI));
-        cPetang = new Chip("PETANG", () -> open(PETANG));
+        cPagi = chip(getString(R.string.dzikir_pagi), () -> open(PAGI));
+        cPetang = chip(getString(R.string.dzikir_petang), () -> open(PETANG));
         LinearLayout.LayoutParams c1 = new LinearLayout.LayoutParams(0, px(44), 1f);
         c1.topMargin = px(12);
         chips.addView(cPagi, c1);
@@ -284,7 +498,7 @@ public class DzikirActivity extends Activity {
         list.setVerticalScrollBarEnabled(false);
         adapter = new ItemAdapter();
         list.setAdapter(adapter);
-        list.setOnItemClickListener((p, v, pos, id) -> show(pos));
+        list.setOnItemClickListener((p, v, pos, id) -> pickItem(pos));
         left.addView(list, new LinearLayout.LayoutParams(MATCH, 0, 1f));
         row.addView(left, portrait ? new LinearLayout.LayoutParams(MATCH, px(hDp * 0.34f))
                 : new LinearLayout.LayoutParams(px(listDp()), MATCH));
@@ -322,19 +536,40 @@ public class DzikirActivity extends Activity {
         scroll.addView(body);
         right.addView(scroll, new LinearLayout.LayoutParams(MATCH, 0, 1f));
 
+        // Pemutar audio: mode di kiri, jauh dari PUTAR (sambil menyetir ketukan mudah meleset).
+        right.addView(rule(), new LinearLayout.LayoutParams(MATCH, px(1)));
+        LinearLayout player = new LinearLayout(this);
+        player.setOrientation(LinearLayout.HORIZONTAL);
+        player.setGravity(Gravity.CENTER_VERTICAL);
+        player.setPadding(px(20), px(8), px(20), px(8));
+        cMode = chip("", this::showAudioDialog);
+        player.addView(cMode, new LinearLayout.LayoutParams(WRAP, px(48)));
+        npSub = text("", fMonoBold, 11, DIM);
+        npSub.setLetterSpacing(0.15f);
+        npSub.setSingleLine(true);
+        npSub.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams sl = new LinearLayout.LayoutParams(0, WRAP, 1f);
+        sl.leftMargin = px(16);
+        sl.rightMargin = px(16);
+        player.addView(npSub, sl);
+        kPlay = new Key(this, fMonoBold, getString(R.string.dzikir_play), true, this::togglePlay).textSp(12);
+        kPlay.minWidth = px(narrow ? 110 : 150);
+        player.addView(kPlay, new LinearLayout.LayoutParams(WRAP, px(48)));
+        right.addView(player, new LinearLayout.LayoutParams(MATCH, px(64)));
+
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setBackgroundColor(PANEL);
         bar.setPadding(px(20), px(12), px(20), px(12));
-        bar.addView(new Chip(narrow ? "‹" : "‹  SEBELUMNYA", () -> show(cur - 1)),
+        bar.addView(chip(narrow ? "‹" : getString(R.string.dzikir_prev), () -> stepBy(-1)),
                 new LinearLayout.LayoutParams(narrow ? px(72) : WRAP, px(72)));
         counter = new Counter();
         LinearLayout.LayoutParams kl = new LinearLayout.LayoutParams(0, px(72), 1f);
         kl.leftMargin = px(12);
         kl.rightMargin = px(12);
         bar.addView(counter, kl);
-        bar.addView(new Chip(narrow ? "›" : "BERIKUTNYA  ›", () -> show(cur + 1)),
+        bar.addView(chip(narrow ? "›" : getString(R.string.dzikir_next), () -> stepBy(1)),
                 new LinearLayout.LayoutParams(narrow ? px(72) : WRAP, px(72)));
         right.addView(bar, new LinearLayout.LayoutParams(MATCH, px(96)));
         row.addView(right, portrait ? new LinearLayout.LayoutParams(MATCH, 0, 1f) : new LinearLayout.LayoutParams(0, MATCH, 1f));
@@ -342,15 +577,6 @@ public class DzikirActivity extends Activity {
     }
 
     // ---------------------------------------------------------------- helpers
-
-    String readAsset(String name) throws java.io.IOException {
-        try (InputStream in = getAssets().open(name)) {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buf = new byte[16384];
-            for (int k; (k = in.read(buf)) > 0; ) out.write(buf, 0, k);
-            return new String(out.toByteArray(), StandardCharsets.UTF_8);
-        }
-    }
 
     Typeface font(String file, String axes) { return Compat.font(getAssets(), file, axes, Typeface.DEFAULT); }
 
@@ -382,68 +608,55 @@ public class DzikirActivity extends Activity {
         return v;
     }
 
+    TextView caption(String s) {
+        TextView t = text(s, fMonoBold, 11, DIM);
+        t.setLetterSpacing(0.2f);
+        t.setPadding(0, px(20), 0, px(10));
+        return t;
+    }
+
+    TextView hint(String s) {
+        TextView t = serif(16, SOFT);
+        t.setText(s);
+        t.setPadding(0, px(14), 0, 0);
+        return t;
+    }
+
+    LinearLayout chipRow(Key... chips) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        for (int i = 0; i < chips.length; i++) {
+            LinearLayout.LayoutParams l = new LinearLayout.LayoutParams(WRAP, px(48));
+            if (i > 0) l.leftMargin = px(8);
+            row.addView(chips[i], l);
+        }
+        return row;
+    }
+
     int px(float v) { return Math.round(v * dp); }
 
     float sp(float v) { return v * sp; }
 
     // ---------------------------------------------------------------- views
 
-    class Chip extends View {
-        final String label;
-        boolean on, down;
-        final Paint fill = new Paint(), stroke = new Paint(Paint.ANTI_ALIAS_FLAG), p = new Paint(Paint.ANTI_ALIAS_FLAG);
-
-        Chip(String label, Runnable click) {
-            super(DzikirActivity.this);
-            this.label = label;
-            setContentDescription(label); // pembaca layar & pengujian otomatis
-            stroke.setStyle(Paint.Style.STROKE);
-            stroke.setStrokeWidth(px(1));
-            stroke.setColor(LINE);
-            p.setTypeface(fMonoBold);
-            p.setTextSize(sp(12));
-            p.setLetterSpacing(0.2f);
-            p.setTextAlign(Paint.Align.CENTER);
-            setClickable(true);
-            setOnClickListener(v -> click.run());
-        }
-
-        void setOn(boolean v) { on = v; invalidate(); }
-
-        /** Lebar mengikuti teks bila tidak ditentukan pasti (WRAP), supaya muat di layar sempit. */
-        @Override protected void onMeasure(int wSpec, int hSpec) {
-            if (MeasureSpec.getMode(wSpec) == MeasureSpec.EXACTLY) { super.onMeasure(wSpec, hSpec); return; }
-            setMeasuredDimension(resolveSize(Math.round(p.measureText(label)) + px(36), wSpec),
-                    resolveSize(px(48), hSpec));
-        }
-
-        @Override protected void drawableStateChanged() {
-            super.drawableStateChanged();
-            if (isPressed() != down) { down = isPressed(); invalidate(); }
-        }
-
-        @Override protected void onDraw(Canvas c) {
-            int w = getWidth(), h = getHeight();
-            boolean lit = down || on;
-            fill.setColor(down ? TEXT : on ? AMBER : BG);
-            c.drawRect(0, 0, w, h, fill);
-            if (!lit) {
-                float s = stroke.getStrokeWidth() / 2f;
-                c.drawRect(s, s, w - s, h - s, stroke);
-            }
-            p.setColor(lit ? INK : TEXT);
-            Paint.FontMetrics fm = p.getFontMetrics();
-            c.drawText(label, w / 2f, h / 2f - (fm.ascent + fm.descent) / 2f, p);
-        }
+    /** Tombol pilihan: menyala = aksen, mati = latar bergaris. */
+    Key chip(String label, Runnable click) {
+        return new Key(this, fMonoBold, label, false, click).textSp(12).off(BG, TEXT);
     }
 
     /** Tombol hitung besar: "2 / 3" dan petunjuk, dengan pita progres di bawah; terang saat ditekan. */
     class Counter extends View {
         boolean down;
-        final Paint fill = new Paint(), big = new Paint(Paint.ANTI_ALIAS_FLAG), small = new Paint(Paint.ANTI_ALIAS_FLAG);
+        final Paint fill = new Paint(), stroke = new Paint(Paint.ANTI_ALIAS_FLAG), big = new Paint(Paint.ANTI_ALIAS_FLAG),
+                small = new Paint(Paint.ANTI_ALIAS_FLAG);
+        final String sDone = getString(R.string.dzikir_done), sFinished = getString(R.string.dzikir_hint_finished),
+                sFull = getString(R.string.dzikir_hint_full), sCount = getString(R.string.dzikir_hint_count),
+                sShortFull = getString(R.string.dzikir_short_full), sShortCount = getString(R.string.dzikir_short_count);
 
         Counter() {
             super(DzikirActivity.this);
+            stroke.setStyle(Paint.Style.STROKE);
+            stroke.setStrokeWidth(px(1));
             big.setTypeface(fHeavy);
             big.setTextSize(sp(34));
             big.setTextAlign(Paint.Align.CENTER);
@@ -465,17 +678,17 @@ public class DzikirActivity extends Activity {
             int w = getWidth(), h = getHeight();
             Item it = items.get(cur);
             boolean finished = allDone(), full = done(cur);
-            fill.setColor(down ? TEXT : AMBER);
-            c.drawRect(0, 0, w, h, fill);
+            Theme.panel(c, fill, stroke, w, h, down ? TEXT : AMBER, false);
             // Progres bacaan ini sebagai pita gelap di bawah tombol.
             fill.setColor(0x33000000);
+            Theme.clip(c, w, h);
             c.drawRect(0, h - px(6), w * Math.min(1f, counts[cur] / (float) it.count), h, fill);
+            c.restore();
             big.setColor(INK);
             small.setColor(INK);
-            String n = finished ? "SELESAI" : Math.min(counts[cur], it.count) + " / " + it.count;
-            String hint = finished ? "ALHAMDULILLAH  ·  KETUK UNTUK MENGULANG"
-                    : full ? "SELESAI  ·  KETUK UNTUK LANJUT" : "KETUK UNTUK MENGHITUNG";
-            if (small.measureText(hint) > w - px(16)) hint = finished ? "ALHAMDULILLAH" : full ? "LANJUT" : "KETUK";
+            String n = finished ? sDone : Math.min(counts[cur], it.count) + " / " + it.count;
+            String hint = finished ? sFinished : full ? sFull : sCount;
+            if (small.measureText(hint) > w - px(16)) hint = finished ? "ALHAMDULILLAH" : full ? sShortFull : sShortCount;
             c.drawText(n, w / 2f, px(40), big);
             c.drawText(hint, w / 2f, px(60), small);
         }
@@ -487,6 +700,7 @@ public class DzikirActivity extends Activity {
         final Paint fill = new Paint();
         final TextPaint num = new TextPaint(Paint.ANTI_ALIAS_FLAG), name = new TextPaint(Paint.ANTI_ALIAS_FLAG),
                 meta = new TextPaint(Paint.ANTI_ALIAS_FLAG);
+        final String sDone = getString(R.string.dzikir_done);
 
         Row() {
             super(DzikirActivity.this);
@@ -526,7 +740,7 @@ public class DzikirActivity extends Activity {
             CharSequence n = TextUtils.ellipsize(it.title, name, avail, TextUtils.TruncateAt.END);
             c.drawText(n, 0, n.length(), x, px(32), name);
             meta.setColor(ok ? AMBER : FAINT);
-            String m = ok ? "SELESAI" : Math.min(counts[i], it.count) + " / " + it.count + "×";
+            String m = ok ? sDone : Math.min(counts[i], it.count) + " / " + it.count + "×";
             c.drawText(m, x, px(52), meta);
         }
     }

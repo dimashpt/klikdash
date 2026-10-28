@@ -32,11 +32,11 @@ final class AiStore {
     /** Suara Indonesia bawaan: "Putra" dari Voice Library ElevenLabs (paling banyak dipakai, boleh untuk akun gratis). */
     static final String EL_VOICE = "RWiGLY9uXI70QL540WNd", EL_VOICE_NAME = "Putra",
             EL_VOICE_OWNER = "c9e3af862b45c80cc29018a0cf11a5feecbba25bbfef3dc811e420a7d82bb47f";
-    /** {model_id, nama tampilan}. Semuanya mendukung bahasa Indonesia. */
+    /** {model_id, nama}. Semuanya mendukung bahasa Indonesia dan Inggris; keterangannya di R.array.ai_el_model_desc. */
     static final String[][] EL_MODELS = {
-            {"eleven_flash_v2_5", "Flash v2.5 — paling cepat, disarankan di mobil"},
-            {"eleven_turbo_v2_5", "Turbo v2.5 — cepat, sedikit lebih natural"},
-            {"eleven_multilingual_v2", "Multilingual v2 — paling ekspresif, lebih lambat"},
+            {"eleven_flash_v2_5", "Flash v2.5"},
+            {"eleven_turbo_v2_5", "Turbo v2.5"},
+            {"eleven_multilingual_v2", "Multilingual v2"},
     };
     /** Cadangan bila daftar model dari API tidak bisa diambil. */
     static final String[] CLAUDE_MODELS = {"claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-1"};
@@ -104,6 +104,24 @@ final class AiStore {
 
     static void setActive(Context c, String id) { prefs(c).edit().putString("active", id).apply(); }
 
+    // ---------------------------------------------------------------- bahasa asisten
+
+    /**
+     * Bahasa TANYA (Lang.ID bawaan, atau Lang.EN): prompt, hasil alat, pengenal suara, dan suara jawaban. Terpisah dari
+     * bahasa antarmuka, jadi tampilan English bisa tetap bertanya dalam bahasa Indonesia, dan sebaliknya.
+     */
+    static String lang(Context c) { return Lang.EN.equals(prefs(c).getString("lang", Lang.ID)) ? Lang.EN : Lang.ID; }
+
+    static void setLang(Context c, String lang) { prefs(c).edit().putString("lang", lang).apply(); }
+
+    static boolean en(Context c) { return Lang.EN.equals(lang(c)); }
+
+    /** Context berbahasa asisten, untuk teks R.string.as_* (dan nama sholat/bulan) yang dikirim ke model atau diucapkan. */
+    static Context inLang(Context c) { return Lang.wrap(c, lang(c)); }
+
+    /** Tag bahasa untuk pengenal suara Android. */
+    static String speechTag(Context c) { return en(c) ? "en-US" : "id-ID"; }
+
     // ---------------------------------------------------------------- ElevenLabs
 
     static String elKey(Context c) { return decrypt(prefs(c).getString("elKey", "")); }
@@ -123,17 +141,32 @@ final class AiStore {
     static void saveElModel(Context c, String model) { prefs(c).edit().putString("elModel", model).apply(); }
 
     static String elModelName(String id) {
-        for (String[] m : EL_MODELS) if (m[0].equals(id)) return m[1].split(" — ")[0];
+        for (String[] m : EL_MODELS) if (m[0].equals(id)) return m[1];
         return id;
     }
 
     /** Pakai suara ElevenLabs untuk jawaban (kalau key & voice terisi); selain itu TTS Android. */
     static boolean elTts(Context c) { return prefs(c).getBoolean("elTts", true); }
 
-    static void saveEleven(Context c, String key, String voice, String model, boolean tts) {
-        prefs(c).edit().putString("elKey", encrypt(key)).putString("elVoice", voice)
-                .putString("elModel", model.isEmpty() ? EL_MODEL : model).putBoolean("elTts", tts).apply();
-    }
+    /** Pengenalan suara lewat ElevenLabs Scribe, bukan pengenal Android (bawaan: Android bila ada). */
+    static boolean elStt(Context c) { return prefs(c).getBoolean("elStt", false); }
+
+    // ---------------------------------------------------------------- pencarian web
+
+    /**
+     * TinyFish untuk pencarian web TANYA (bawaan aktif, berlaku bila key-nya diisi): semua profil mencari lewat alat
+     * web_search. Mati atau tanpa key: hanya profil Claude resmi yang mencari, lewat web search server Anthropic.
+     */
+    static boolean webSearch(Context c) { return prefs(c).getBoolean("webSearch", true); }
+
+    static void setWebSearch(Context c, boolean on) { prefs(c).edit().putBoolean("webSearch", on).apply(); }
+
+    static String tinyfishKey(Context c) { return decrypt(prefs(c).getString("tfKey", "")); }
+
+    /** Tanpa dekripsi (Keystore lambat), untuk memilih alat saat sesi dibuat. */
+    static boolean hasTinyfishKey(Context c) { return !prefs(c).getString("tfKey", "").isEmpty(); }
+
+    static void saveTinyfishKey(Context c, String key) { prefs(c).edit().putString("tfKey", encrypt(key)).apply(); }
 
     // ---------------------------------------------------------------- enkripsi (Android Keystore, AES-GCM)
 

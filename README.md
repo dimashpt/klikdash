@@ -18,8 +18,8 @@
   <img src="https://img.shields.io/badge/tested%20on-NWD%20K2401%20%C2%B7%201280%C3%97720-lightgrey" alt="Tested on NWD K2401, 1280x720">
   <br>
   <img src="https://img.shields.io/badge/idle%20CPU-~0%25-FFB000" alt="Idle CPU around 0%">
-  <img src="https://img.shields.io/badge/offline-100%25-FFB000" alt="Fully offline">
-  <img src="https://img.shields.io/badge/UI-Indonesian-lightgrey" alt="Indonesian user interface">
+  <img src="https://img.shields.io/badge/offline-after%20first%20download-FFB000" alt="Works offline after the first download">
+  <img src="https://img.shields.io/badge/UI-Indonesian%20%7C%20English-lightgrey" alt="Indonesian or English user interface">
 </p>
 
 <p align="center">
@@ -38,43 +38,59 @@
 ## About
 
 KlikDash replaces the headunit's stock launcher with a static instrument-panel home screen (~0–1% CPU,
-~30 MB RAM). Plain Java, no libraries. The app itself is in Indonesian. On the NWD K2401 it was built on, the
+~30 MB RAM). Plain Java, no libraries. The interface is in Indonesian or English (**⚙ › Launcher › BAHASA / LANGUAGE**), and the
+voice assistant has its own language setting. On the NWD K2401 it was built on, the
 stock launcher renders a 3D animation nonstop (~40% CPU).
 
 ## Features
 
-- **Home:** large clock, speed from GPS, Gregorian and Hijri date, CPU temperature, and 11 shortcuts you can
-  rearrange by long-pressing.
-- **Prayer times:** offline, Kemenag method, location from GPS, live countdown to the next prayer.
+- **Home:** large clock, speed from GPS, Gregorian and Hijri date, CPU temperature, and up to 11 shortcuts you can
+  rearrange by long-pressing (show 12, 9, 6 or 4 shortcuts: with fewer shortcuts the clock and the shortcuts are bigger and easier to read).
+- **Prayer times:** offline, Kemenag method (JAKIM in Malaysia), location from GPS, live countdown to the next prayer.
 - **Al-Qur'an:** all 114 surahs with Kemenag text and translation, verse-by-verse recitation by Mishary Rashid
   Alafasy, readable offline.
-- **Dhikr:** morning and evening readings with a guided counter.
+- **Dhikr:** morning and evening readings with a guided counter, and audio that keeps playing in the background while
+  you drive (each reading repeats as many times as its count and the counter follows along).
+- **Player notch:** while the recitation, the dhikr or music from another app (Spotify, YouTube Music, ...) plays, a
+  small bar at the top of the home shows what is playing, with pause and next.
 - **Power saver:** stop apps such as Netflix or Spotify from running in the background.
-- **Voice assistant TANYA (optional):** say *"putar surat Yasin"*, *"navigasi ke masjid terdekat pakai Waze"* or
-  *"buka Zlink"*. Bring your own Claude or OpenAI-compatible key, with an ElevenLabs voice.
-- **Settings & updates:** the ⚙ button on the home screen; **CEK UPDATE** installs new versions without a computer.
+- **Voice assistant TANYA AI / ASK AI (optional):** say *"putar surat Yasin"*, *"navigasi ke masjid terdekat pakai
+  Waze"* or *"buka Zlink"*. Bring your own Claude or OpenAI-compatible key; it listens and speaks with the
+  headunit's free Android voice or with ElevenLabs, and looks up current information on the web (Claude's web
+  search, or free TinyFish search for any provider). ▶️ **[Setup video](https://youtu.be/v9Bm6FzUKm8)** (6 minutes,
+  Indonesian with subtitles).
+- **Screen lock:** a 4-digit PIN (**⚙ › Launcher › KUNCI LAYAR / SCREEN LOCK**) and a padlock on the home screen,
+  so children cannot open apps or change settings. The clock and prayer times stay visible.
+- **Settings & updates:** the ⚙ button on the home screen; four themes (AMBER, EMERALD, DAY, and GLOSSY with glass
+  panels); **CEK UPDATE / CHECK UPDATE** installs new versions without a computer, and the optional automatic check
+  (off by default) offers them by itself when the headunit turns on.
 
 ## Install
 
 ▶️ **[Video tutorial on YouTube](https://youtu.be/sSRKIyC3Ato)** (5 minutes, Indonesian with subtitles) ·
-👉 **[Step-by-step guide](docs/INSTALL.md)** with screenshots and FAQ
+👉 **[Step-by-step guide](docs/INSTALL.md)** with screenshots and FAQ ·
+📺 **[All video tutorials](https://www.youtube.com/playlist?list=PLEAZ252hW8a4)**: install, TANYA AI / ASK AI, TinyFish web search, updates, USB and Wireless debugging
 
 [![KlikDash install tutorial on YouTube](docs/img/video.png)](https://youtu.be/sSRKIyC3Ato)
 
 1. Download `klikdash-<version>.apk` from [Releases](https://github.com/ashafizullah/klikdash/releases/latest) and
    copy it to a USB stick.
 2. On the headunit, open the APK in the file manager and tap **INSTALL**, then **OPEN**.
-3. Tap the yellow **JADIKAN TAMPILAN UTAMA** button (on NWD firmware this needs USB debugging on).
-4. With internet on, open **Al-Qur'an** once and tap **UNDUH TEKS**.
+3. Tap the yellow **JADIKAN TAMPILAN UTAMA / SET AS HOME SCREEN** button (on NWD firmware
+   this needs USB debugging on).
+4. With internet on, open **Al-Qur'an** once and tap **UNDUH TEKS / DOWNLOAD**.
 5. Go through the [test-before-you-drive checklist](#disclaimer) with the car parked.
 
-Updating: **⚙ › Launcher › CEK UPDATE** (from 1.3.0), or install the new APK over the old one. Settings and audio
-are kept.
+Updating: **⚙ › Launcher › CEK UPDATE / CHECK UPDATE** (from 1.3.0), or install the new APK over the old one.
+Settings and audio are kept.
 
 ## Supported devices
 
 KlikDash needs **Android 7.0 or newer** and is designed for a **1280×720 landscape** screen. The
-headunit-specific parts (default launcher, sleep/wake, Zlink, ksmd) target NWD firmware.
+headunit-specific parts (default launcher, sleep/wake, Zlink, ksmd) target NWD firmware. They run through the
+headunit's own ADB, so USB debugging must be on; headunits that ask "Allow USB debugging?" are supported, and on
+Android 11 and later ADB usually has to be opened once: without a computer over Wireless debugging, or from a
+computer with `adb tcpip 5555` (see [docs/INSTALL.md](docs/INSTALL.md)).
 
 | Device | Screen | Android | Status |
 |---|---|---|---|
@@ -97,24 +113,36 @@ replaces the home screen, and the optional power saver only stops apps you pick 
 
 | Change | When | How to undo it |
 |---|---|---|
-| Default launcher `persist.nwd.launcher.default=com.ashafizullah.klikdash` (NWD) and HOME preference | When you tap **JADIKAN TAMPILAN UTAMA** | **Settings › Launcher › LAUNCHER BAWAAN**, or `adb shell setprop persist.nwd.launcher.default com.android.launcher` |
+| Default launcher `persist.nwd.launcher.default=com.ashafizullah.klikdash` (NWD) and HOME preference | When you tap **JADIKAN TAMPILAN UTAMA / SET AS HOME SCREEN** | **Settings › Launcher › LAUNCHER BAWAAN / STOCK LAUNCHER**, or `adb shell setprop persist.nwd.launcher.default com.android.launcher` |
 | ksmd turned off | Every boot, while KlikDash is the home screen (needs ADB on) | Switch back to the stock launcher or uninstall KlikDash, then reboot |
 | Zlink sent back to home when it opens by itself | First 3 minutes after boot or wake-up | Same as above |
-| Apps blocked from running in the background (`appops RUN_ANY_IN_BACKGROUND/RUN_IN_BACKGROUND ignore`) | Only for apps you switch on in **HEMAT DAYA**, or ask TANYA to | Tap the app again, or **KEMBALIKAN SEMUA** |
-| KlikDash updated with `pm install` | Only when you tap **Unduh & pasang** in Settings | Install an older APK with `adb install -r -d` |
+| Apps blocked from running in the background (`appops RUN_ANY_IN_BACKGROUND/RUN_IN_BACKGROUND ignore`) | Only for apps you switch on in **HEMAT DAYA / POWER SAVER**, or ask TANYA AI / ASK AI to | Tap the app again, or **KEMBALIKAN SEMUA / RESTORE ALL** |
+| KlikDash's ADB key allowed (headunits that ask "Allow USB debugging?") | Once, when you tick **Always allow** the first time KlikDash needs ADB | **Settings › Developer options › Revoke USB debugging authorizations** (this also removes computers you allowed) |
+| KlikDash updated with `pm install` | Only when you tap **Unduh & pasang / Download & install** in Settings | Install an older APK with `adb install -r -d` |
 
 The old NWD launcher is **not removed**. Its process stays because it also handles car info from the CAN bus.
 
 ## Notes
 
-- **Voice assistant privacy and cost.** What you say is sent to ElevenLabs to be transcribed, and the text, with
-  the list of installed app names, the current time and, when a command needs it, the location, goes to the AI
-  provider of the active profile. Usage is billed to your own accounts. Nothing goes through a KlikDash server.
-  The AI can be wrong: check what it did, and do not rely on it for anything safety-critical.
+- **Voice assistant privacy and cost.** What you say is transcribed by the recognizer chosen under
+  **PENGENALAN SUARA / SPEECH RECOGNITION**: Android (the Google app, processed by Google) or ElevenLabs Scribe.
+  The text, with the list of installed app names, the current time and, when a command needs it, the location,
+  goes to the AI provider of the active profile. Usage is billed to your own accounts. Nothing goes through a
+  KlikDash server. The AI can be wrong: check what it did, and do not rely on it for anything safety-critical.
+- **Android voice and speech recognition (optional).** **SUARA JAWABAN / ANSWER VOICE** and **PENGENALAN SUARA /
+  SPEECH RECOGNITION** each choose ANDROID or ELEVENLABS. ANDROID uses the headunit's own engines through the
+  standard Android API, so no ElevenLabs account is needed. If the headunit has none, tapping ANDROID opens the app
+  in the Play Store:
+  [Speech Recognition & Synthesis](https://play.google.com/store/apps/details?id=com.google.android.tts) (Speech
+  Services by Google) to speak and the [Google app](https://play.google.com/store/apps/details?id=com.google.android.googlequicksearchbox)
+  to listen. Both are separate, free apps from Google under Google's own terms; KlikDash does not include or
+  redistribute them. With the Indonesian voice downloaded in Speech Recognition & Synthesis, answers are spoken
+  offline; what the Google app recognizes is processed by Google. Firmware that blocks Google Play services updates
+  (such as NWD) may make the Google app ask for one; recognition still works.
 - **Security.** Enabled ADB over WiFi gives full access to the headunit. Only connect the headunit to a
   private network (such as your own phone's hotspot), never to public WiFi.
 - **Prayer-time accuracy** is within ±1 minute of the Kemenag schedule (compared for Jakarta,
-  26 October 2026).
+  26 October 2026), and within 1 minute of the JAKIM e-Solat timetable on 92.7% of days (six Malaysian zones, 2026).
 
 ## Disclaimer
 
@@ -134,8 +162,8 @@ The old NWD launcher is **not removed**. Its process stays because it also handl
 
 - Changing the default launcher and system settings is not supported by the headunit maker and may affect
   your warranty. Every change can be undone (see [Changes made on the headunit](#changes-made-on-the-headunit)).
-- **Do not operate the screen while driving.** Use the steering-wheel buttons, or stop safely first. TANYA
-  still needs a tap to start listening; keep it to short commands and keep your eyes on the road.
+- **Do not operate the screen while driving.** Use the steering-wheel buttons, or stop safely first. TANYA AI /
+  ASK AI still needs a tap to start listening; keep it to short commands and keep your eyes on the road.
 - Prayer times are calculated and may differ by a minute or so from official schedules; follow your local
   mosque or authority.
 - The Quran text and translation are not included; check the text you build against an official mushaf.
@@ -146,6 +174,10 @@ The old NWD launcher is **not removed**. Its process stays because it also handl
 Code structure, building without Gradle, the recitation audio, building the Quran text, and how the NWD firmware
 behaves: see **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
 
+## Support
+
+KlikDash is free. If it saves you time, **[buy me an AI token on Trakteer](https://trakteer.id/adamshafizullah/tip)** ☕🤖.
+
 ## Sources & licenses
 
 - **Code:** [MIT](LICENSE).
@@ -153,13 +185,25 @@ behaves: see **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**.
   Literata (via Google Fonts). Literata is instanced and subset; its name and license are unchanged.
 - **Text, transliteration, and translation** (not included): [equran.id](https://equran.id), i.e. the
   Kemenag RI standard mushaf and translation. Rights and terms belong to their owners.
+- **English translation** (not included, downloaded on request): Saheeh International via
+  [alquran.cloud](https://alquran.cloud) (from [Tanzil](https://tanzil.net/trans/)). Rights belong to its owners.
 - **Audio** (not included): [everyayah.com](https://everyayah.com) / versebyversequran.com, Mishary Rashid
   Alafasy 128 kbps. Follow the license on that site.
-- **Prayer times:** the [praytimes.org](http://praytimes.org) algorithm.
+- **Prayer times:** calculated on the device with the Kemenag RI parameters (Subuh 20°, Isya 18°, Shafi'i Asr,
+  +2 minutes ihtiyath), or JAKIM in Malaysia (Subuh 18°, Isyak 18°, +1 minute, Zuhur +2), using the U.S. Naval Observatory's approximate solar coordinates and the Julian day from
+  Meeus' *Astronomical Algorithms*.
 - **Dhikr** (`assets/dzikir.json`): from [KlikBand](https://github.com/ashafizullah/klikband); order and counts from
   [Almanhaj](https://almanhaj.or.id/11518-dzikir-pagi-dan-petang.html), Latin following Hisnul Muslim, Qur'an
-  verses from [Tanzil](https://tanzil.net) (CC BY 3.0). Rebuild with
+  verses from [Tanzil](https://tanzil.net): Tanzil Quran Text (Simple Plain, Version 1.1), © Tanzil Project,
+  CC BY 3.0 with Tanzil's terms (verbatim copies only, with credit and a link). Rebuild with
   `node tools/build_dzikir.mjs <klikband>/src/common/dhikrmorningevening.js assets/dzikir.json`.
+  Dhikr audio: Qur'an verses recited by Mishary Rashid Alafasy (everyayah.com); the other readings are KlikDash
+  recordings in `audio/dzikir/`, downloaded by the app once (`python3 tools/build_dzikir_audio.py <recordings>`).
 
-This project is not affiliated with NWD, Zjinnova (Zlink), Apple, Google, Anthropic, OpenAI, ElevenLabs, or
-Kemenag RI.
+This project is not affiliated with NWD, Zjinnova (Zlink), Apple, Google, Anthropic, OpenAI, ElevenLabs, TinyFish,
+or Kemenag RI. Product names are trademarks of their owners.
+
+<p>
+  <a href="https://github.com/ashafizullah"><img src="https://github.com/ashafizullah.png?size=64" width="32" height="32" alt="" align="left" style="border-radius:50%"></a>
+  &nbsp;Built by <a href="https://github.com/ashafizullah"><b>Adam Suchi Hafizullah</b></a>
+</p>

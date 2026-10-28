@@ -46,11 +46,18 @@ public class QuranService extends Service
     /** LANJUT: terus ke surah berikutnya; SURAH/AYAT: ulangi. */
     static final int MODE_CONTINUE = 0, MODE_REPEAT_SURAH = 1, MODE_REPEAT_AYAH = 2;
     static final String RECITER = "Mishary Rashid Alafasy";
+    static final String CHANNEL = "quran";
     /** Audio per ayat; APK tidak membawanya, diunduh saat diputar lalu disimpan untuk offline. */
     static final String AUDIO_URL = "https://everyayah.com/data/Alafasy_128kbps/%03d%03d.mp3";
 
     // Status dibaca langsung oleh UI (satu proses, thread utama).
     static int surah = 1, ayah = 1, mode = MODE_CONTINUE;
+    /** ULANG AYAT/SURAH: berapa kali tiap ayat/surah diputar sebelum lanjut; 0 = terus diulang. */
+    static int repeat;
+    /** Berhenti setelah surah ini selesai diputar (0 = tidak, lanjut sampai An-Nas). */
+    static int stopAfter;
+    /** Sudah berapa kali ayat dan surah yang sedang diputar selesai; diulang dari nol tiap pengguna memilih. */
+    static int ayahPlays, surahPlays;
     static boolean playing, active, bismillah, missing;
     /** buffering: menunggu file ayat yang sedang diputar selesai diunduh. dlSurah 0 = tidak ada unduhan. */
     static boolean buffering;
@@ -87,9 +94,12 @@ public class QuranService extends Service
         Compat.startForegroundService(c, new Intent(c, QuranService.class).setAction(action));
     }
 
-    static void play(Context c, int s, int a) {
+    static void play(Context c, int s, int a) { play(c, s, a, true); }
+
+    /** {@code withBismillah} false: ayat 1 langsung, tanpa basmalah (ayat 1 diketuk di daftar ayat). */
+    static void play(Context c, int s, int a, boolean withBismillah) {
         Compat.startForegroundService(c, new Intent(c, QuranService.class).setAction(ACTION_PLAY)
-                .putExtra("s", s).putExtra("a", a));
+                .putExtra("s", s).putExtra("a", a).putExtra("b", withBismillah));
     }
 
     static void loadState(Context c) {
@@ -97,12 +107,53 @@ public class QuranService extends Service
         surah = p.getInt("s", 1);
         ayah = p.getInt("a", 1);
         mode = p.getInt("mode", MODE_CONTINUE);
+        repeat = p.getInt("repeat", 0);
+        stopAfter = p.getInt("stopAfter", 0);
     }
 
-    static void setMode(Context c, int m) {
+    /** Mode, jumlah ulangan (0 = terus), dan surah terakhir (0 = tidak ada); berlaku mulai ayat yang sedang diputar. */
+    static void setMode(Context c, int m, int times, int lastSurah) {
         mode = m;
-        c.getSharedPreferences("quran", MODE_PRIVATE).edit().putInt("mode", m).apply();
+        repeat = times;
+        stopAfter = lastSurah;
+        ayahPlays = surahPlays = 0;
+        c.getSharedPreferences("quran", MODE_PRIVATE).edit().putInt("mode", m).putInt("repeat", times)
+                .putInt("stopAfter", lastSurah).apply();
         notifyListeners();
+    }
+
+    /** Untuk tombol mode, notch, dan notifikasi: "LANJUT", "LANJUT → AN-NAS", "ULANG AYAT 3×", "ULANG SURAH ∞". */
+    static String modeLabel() { return modeLabel(res); }
+
+    static String modeLabel(Context c) {
+        if (c == null) return "";
+        c = res(c);
+        if (mode == MODE_CONTINUE) {
+            return stopAfter > 0 ? c.getString(R.string.quran_label_continue_to, surahName(stopAfter).toUpperCase(Locale.US))
+                    : c.getString(R.string.quran_mode_continue);
+        }
+        return c.getString(mode == MODE_REPEAT_AYAH ? R.string.quran_label_repeat_ayah : R.string.quran_label_repeat_surah,
+                repeat == 0 ? "∞" : repeat + "×");
+    }
+
+    /**
+     * Context untuk teks sesuai bahasa antarmuka saat ini. Layanan bisa hidup lebih lama dari pergantian bahasa
+     * (context-nya dibungkus sekali di attachBaseContext), dan {@link #modeLabel()} dipanggil tanpa context.
+     */
+    private static Context res;
+    private static String resLang;
+
+    static Context res(Context c) {
+        String code = Lang.code != null ? Lang.code : Lang.saved(c);
+        if (res == null || !code.equals(resLang)) {
+            res = Lang.wrap(c.getApplicationContext(), code);
+            resLang = code;
+        }
+        return res;
+    }
+
+    static String surahName(int s) {
+        return QuranData.loaded() ? QuranData.get(s).latin : "Surah " + s;
     }
 
     static void notifyListeners() {
@@ -115,6 +166,9 @@ public class QuranService extends Service
     Compat.Focus focus;
     NotificationManager nm;
     boolean resumeOnGain;
+    /** Dikecilkan selama aplikasi lain bicara sebentar (navigasi); ayat berikutnya ikut kecil. */
+    boolean ducked;
+    static final float DUCK = 0.3f;
     final Handler main = new Handler(Looper.getMainLooper());
     /** Unduhan surah berurutan di satu thread; file yang sedang ditunggu pemutar diunduh terpisah. */
     final ExecutorService downloader = Executors.newSingleThreadExecutor();
@@ -125,8 +179,11 @@ public class QuranService extends Service
             .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
             .build();
 
+    @Override protected void attachBaseContext(Context base) { super.attachBaseContext(Lang.wrap(base)); }
+
     @Override public void onCreate() {
         super.onCreate();
+        res(this);
         loadState(this);
         am = (AudioManager) getSystemService(AUDIO_SERVICE);
         nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
@@ -153,8 +210,12 @@ public class QuranService extends Service
     @Override public int onStartCommand(Intent i, int flags, int id) {
         startForeground(1, notification());
         String a = i != null ? i.getAction() : null;
+        if (ACTION_PLAY.equals(a) || ACTION_NEXT.equals(a) || ACTION_PREV.equals(a)) {
+            ayahPlays = surahPlays = 0; // pilihan pengguna: hitungan ulang mulai lagi
+            android.util.Log.i("KlikDashQuran", "DBG reset oleh " + a);
+        }
         if (ACTION_PLAY.equals(a)) {
-            start(i.getIntExtra("s", surah), i.getIntExtra("a", 1), true);
+            start(i.getIntExtra("s", surah), i.getIntExtra("a", 1), i.getBooleanExtra("b", true));
         } else if (ACTION_TOGGLE.equals(a)) {
             if (playing || resumeOnGain) userPause(); else resume();
         } else if (ACTION_PAUSE.equals(a)) {
@@ -192,23 +253,43 @@ public class QuranService extends Service
 
     // ------------------------------------------------------------ pemutaran
 
-    /** Mulai dari ayat {@code a}; basmalah diputar dulu bila ayat 1 dan surah memilikinya. */
+    /** Mulai dari ayat {@code a} atas pilihan pengguna; basmalah diputar dulu bila ayat 1 dan surah memilikinya. */
     void start(int s, int a, boolean withBismillah) {
-        surah = s;
-        ayah = Math.max(1, Math.min(a, QuranData.count(s)));
-        bismillah = withBismillah && ayah == 1 && QuranData.hasBismillah(s);
-        getSharedPreferences("quran", MODE_PRIVATE).edit().putInt("s", surah).putInt("a", ayah).apply();
         if (focus.request() != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            select(s, a, withBismillah);
             playing = false;
             publish();
             return;
         }
+        advance(s, a, withBismillah);
+    }
+
+    /**
+     * Lanjut ke ayat berikutnya tanpa meminta audio focus lagi (sudah dipegang). Di firmware NWD tiap permintaan
+     * dan tiap jeda tanpa audio membuat MCU berpindah sumber audio lagi, yang memotong awal ayat.
+     */
+    void advance(int s, int a, boolean withBismillah) {
+        select(s, a, withBismillah);
         playCurrent();
     }
 
+    void select(int s, int a, boolean withBismillah) {
+        surah = s;
+        ayah = Math.max(1, Math.min(a, QuranData.count(s)));
+        bismillah = withBismillah && ayah == 1 && QuranData.hasBismillah(s);
+        getSharedPreferences("quran", MODE_PRIVATE).edit().putInt("s", surah).putInt("a", ayah).apply();
+    }
+
+    /**
+     * Putar file ayat/basmalah saat ini. Player lama dibisukan dan baru dilepas sesudah yang baru mulai: firmware NWD
+     * (NwdAudioService) memperlakukan jeda tanpa audio aktif, walau hanya ±60 ms, sebagai sumber audio yang berhenti,
+     * lalu saat audio mulai lagi MCU berpindah sumber dan amplifier sesaat bisu; huruf pertama tiap ayat hilang.
+     */
     void playCurrent() {
         final File f = bismillah ? audioFile(this, 1, 1) : audioFile(this, surah, ayah);
-        release();
+        MediaPlayer old = player;
+        player = null;
+        if (old != null) old.setVolume(0f, 0f);
         missing = false;
         if (!f.exists()) {
             // Unduh ayat ini dulu (thread sendiri, tidak antre), sisa surah menyusul di latar.
@@ -221,6 +302,7 @@ public class QuranService extends Service
                 main.post(() -> onFetched(f, ok));
             }, "quran-fetch").start();
             queueSurah(surah, ayah);
+            if (old != null) old.release();
             publish();
             return;
         }
@@ -231,31 +313,52 @@ public class QuranService extends Service
             player.setDataSource(f.getPath());
             player.setOnCompletionListener(this);
             player.prepare();
+            if (ducked) player.setVolume(DUCK, DUCK);
             player.start();
             playing = true;
+            android.util.Log.i("KlikDashQuran", "putar " + surah + ":" + (bismillah ? "basmalah" : ayah)
+                    + " (" + modeLabel() + ")");
         } catch (Exception e) {
             release();
             playing = false;
         }
+        if (old != null) old.release();
         publish();
     }
 
     @Override public void onCompletion(MediaPlayer mp) {
+        // Sebagian MediaPlayer melapor selesai dua kali untuk satu file; yang kedua harus diabaikan, kalau tidak
+        // hitungan ulang (ULANG SURAH 2×) terhitung lagi dan surah diputar sekali lebih banyak.
+        if (mp != player) return;
+        android.util.Log.i("KlikDashQuran", "DBG selesai " + surah + ":" + ayah + " b=" + bismillah + " ayahPlays=" + ayahPlays + " surahPlays=" + surahPlays + " mode=" + mode + " repeat=" + repeat + " stop=" + stopAfter);
         if (bismillah) {
             bismillah = false;
             playCurrent();
             return;
         }
-        if (mode == MODE_REPEAT_AYAH) {
+        if (mode == MODE_REPEAT_AYAH && (repeat == 0 || ++ayahPlays < repeat)) {
             playCurrent();
-        } else if (ayah < QuranData.count(surah)) {
-            start(surah, ayah + 1, false);
-        } else if (mode == MODE_REPEAT_SURAH) {
-            start(surah, 1, true);
-        } else if (surah < QuranData.SURAH_COUNT) {
-            start(surah + 1, 1, true);
+            return;
+        }
+        ayahPlays = 0;
+        if (ayah < QuranData.count(surah)) {
+            advance(surah, ayah + 1, false);
+            return;
+        }
+        // Akhir surah.
+        if (mode == MODE_REPEAT_SURAH && (repeat == 0 || ++surahPlays < repeat)) {
+            advance(surah, 1, true);
+            return;
+        }
+        surahPlays = 0;
+        if (surah == stopAfter || surah >= QuranData.SURAH_COUNT) {
+            // Lepas player (bukan sekadar jeda): putar lagi mulai ulang ayat ini, dan player lama tidak bisa
+            // melapor selesai lagi.
+            release();
+            playing = false;
+            publish();
         } else {
-            pause();
+            advance(surah + 1, 1, true);
         }
     }
 
@@ -384,9 +487,11 @@ public class QuranService extends Service
                 pause();
                 break;
             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
-                if (player != null) player.setVolume(0.3f, 0.3f);
+                ducked = true;
+                if (player != null) player.setVolume(DUCK, DUCK);
                 break;
             case AudioManager.AUDIOFOCUS_GAIN:
+                ducked = false;
                 if (player != null) player.setVolume(1f, 1f);
                 if (resumeOnGain) resume();
                 resumeOnGain = false;
@@ -397,18 +502,17 @@ public class QuranService extends Service
     // ------------------------------------------------------------ status & notifikasi
 
     String title() {
-        String name = QuranData.loaded() ? QuranData.get(surah).latin : "Surah " + surah;
-        return bismillah ? name + " · Basmalah" : name + " · Ayat " + ayah;
+        String name = surahName(surah);
+        return bismillah ? res(this).getString(R.string.quran_n_basmalah, name)
+                : res(this).getString(R.string.quran_n_ayah, name, ayah);
     }
 
     String status() {
-        if (missing) return "Audio belum ada — sambungkan internet untuk mengunduh";
-        if (buffering) return "Mengunduh audio…";
-        if (dlSurah > 0) {
-            String name = QuranData.loaded() ? QuranData.get(dlSurah).latin : "Surah " + dlSurah;
-            return "Mengunduh " + name + " " + dlDone + "/" + dlTotal;
-        }
-        return RECITER;
+        Context r = res(this);
+        if (missing) return r.getString(R.string.quran_n_missing);
+        if (buffering) return r.getString(R.string.quran_n_buffering);
+        if (dlSurah > 0) return r.getString(R.string.quran_n_downloading, surahName(dlSurah), dlDone, dlTotal);
+        return mode == MODE_CONTINUE && stopAfter == 0 ? RECITER : RECITER + " · " + modeLabel(this);
     }
 
     void publish() {
@@ -421,7 +525,7 @@ public class QuranService extends Service
         session.setMetadata(new MediaMetadata.Builder()
                 .putString(MediaMetadata.METADATA_KEY_TITLE, title())
                 .putString(MediaMetadata.METADATA_KEY_ARTIST, RECITER)
-                .putString(MediaMetadata.METADATA_KEY_ALBUM, "Al-Qur'an")
+                .putString(MediaMetadata.METADATA_KEY_ALBUM, res(this).getString(R.string.app_quran))
                 .build());
         nm.notify(1, notification());
         if (!playing) stopForeground(false);
@@ -431,16 +535,18 @@ public class QuranService extends Service
     Notification notification() {
         PendingIntent open = PendingIntent.getActivity(this, 0,
                 new Intent(this, QuranActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), 0);
-        return Compat.notification(this, "quran", "Murattal")
+        Context r = res(this);
+        return Compat.notification(this, CHANNEL, r.getString(R.string.channel_quran))
                 .setSmallIcon(R.drawable.ic_quran)
                 .setContentTitle(title())
                 .setContentText(status())
                 .setContentIntent(open)
                 .setOngoing(playing)
                 .setShowWhen(false)
-                .addAction(new Notification.Action.Builder(null, "Sebelumnya", pi(ACTION_PREV, 1)).build())
-                .addAction(new Notification.Action.Builder(null, playing ? "Jeda" : "Putar", pi(ACTION_TOGGLE, 2)).build())
-                .addAction(new Notification.Action.Builder(null, "Berikutnya", pi(ACTION_NEXT, 3)).build())
+                .addAction(new Notification.Action.Builder(null, r.getString(R.string.quran_n_prev), pi(ACTION_PREV, 1)).build())
+                .addAction(new Notification.Action.Builder(null,
+                        r.getString(playing ? R.string.quran_n_pause : R.string.quran_n_play), pi(ACTION_TOGGLE, 2)).build())
+                .addAction(new Notification.Action.Builder(null, r.getString(R.string.quran_n_next), pi(ACTION_NEXT, 3)).build())
                 .setStyle(new Notification.MediaStyle()
                         .setMediaSession(session.getSessionToken())
                         .setShowActionsInCompactView(0, 1, 2))
