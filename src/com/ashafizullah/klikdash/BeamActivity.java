@@ -39,7 +39,7 @@ import static com.ashafizullah.klikdash.HomeActivity.WRAP;
 
 /**
  * Penerima KlikBeam (BETA) layar penuh: mirror layar HP lewat WiFi, pengirimnya aplikasi KlikBeam (Android di Play Store
- * uji tertutup; iOS belum rilis). Dibuka dari Pengaturan › KLIKBEAM, yang juga menampilkan cara menyambung, kode pairing 6 digit,
+ * uji tertutup; iOS di App Store). Dibuka dari Pengaturan › KLIKBEAM, yang juga menampilkan cara menyambung, kode pairing 6 digit,
  * dan IP headunit. Video di tengah dengan letterbox sesuai rasio CONFIG; selama belum ada gambar tampil panel status.
  *
  * Server dan decoder ada di {@link BeamHub}, jadi siaran tidak putus saat berpindah ke jendela melayang
@@ -78,7 +78,8 @@ public final class BeamActivity extends Activity implements BeamHub.Listener {
         video.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override public void surfaceCreated(SurfaceHolder h) {
                 BeamHub.attach(h.getSurface());
-                BeamHub.hideFloat(); // gambar sudah di layar penuh; jendela melayang tidak diperlukan
+                // Gambar sudah di layar penuh; jendela melayang tidak diperlukan (kecuali sedang pindah ke sana).
+                if (!minimizing) BeamHub.hideFloat();
             }
             @Override public void surfaceChanged(SurfaceHolder h, int f, int w, int hh) { }
             @Override public void surfaceDestroyed(SurfaceHolder h) { BeamHub.detach(h.getSurface()); }
@@ -126,7 +127,7 @@ public final class BeamActivity extends Activity implements BeamHub.Listener {
         ui.removeCallbacks(hideControls);
         controls.setVisibility(View.GONE);
         // Pindah ke aplikasi lain selagi ada gambar: lanjut melayang. Tanpa gambar (atau tanpa izin): matikan.
-        if (!minimizing && !isChangingConfigurations() && !(BeamHub.streaming && BeamHub.showFloat())) BeamHub.stop();
+        if (!minimizing && !isChangingConfigurations() && !(BeamHub.streaming && BeamHub.showFloat())) BeamHub.close();
         super.onStop();
     }
 
@@ -135,7 +136,7 @@ public final class BeamActivity extends Activity implements BeamHub.Listener {
         if (BeamHub.streaming) {
             minimize();
         } else {
-            BeamHub.stop();
+            BeamHub.close();
             finish();
         }
     }
@@ -209,8 +210,27 @@ public final class BeamActivity extends Activity implements BeamHub.Listener {
         state.setPadding(0, dp(18), 0, dp(24));
         p.addView(state);
 
-        // Cara menyambung, kode, dan alamat ada di Pengaturan › KLIKBEAM.
-        TextView hint = text(getString(R.string.beam_receiver_hint, codeText(this)), null, 17, TEXT);
+        // Kode pairing besar (diketik di HP sambil melihat layar ini), alamat di bawahnya; cara menyambung di Pengaturan.
+        android.graphics.drawable.Drawable qr = pairQr(this);
+        if (qr != null) {
+            LinearLayout.LayoutParams ql = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            ql.bottomMargin = dp(16);
+            p.addView(HelpVideo.qrCard(this, qr, getString(R.string.settings_beam_scan_pair), null), ql);
+        }
+        TextView codeLabel = text(getString(R.string.settings_beam_code_label), monoBold, 12, AMBER);
+        codeLabel.setLetterSpacing(.25f);
+        p.addView(codeLabel);
+        TextView code = text(codeText(this), heavy, 72, TEXT);
+        code.setLetterSpacing(.06f);
+        p.addView(code);
+        String addr = addressText();
+        if (addr != null) {
+            TextView a = text(addr, monoBold, 20, DIM);
+            a.setPadding(0, dp(4), 0, dp(24));
+            p.addView(a);
+        }
+        TextView hint = text(getString(R.string.beam_receiver_hint), null, 17, TEXT);
         hint.setMaxWidth(dp(560));
         p.addView(hint);
         return p;
@@ -235,7 +255,7 @@ public final class BeamActivity extends Activity implements BeamHub.Listener {
         LinearLayout row = new LinearLayout(this);
         row.addView(controlButton(R.string.beam_minimize, monoBold, true, v -> minimize()));
         row.addView(controlButton(R.string.beam_close, monoBold, false, v -> {
-            BeamHub.stop();
+            BeamHub.close();
             finish();
         }));
         row.setVisibility(View.GONE);
@@ -318,6 +338,30 @@ public final class BeamActivity extends Activity implements BeamHub.Listener {
     static String codeText(Context c) {
         String s = String.valueOf(pairingCode(c));
         return s.substring(0, 3) + " " + s.substring(3);
+    }
+
+    /** Halaman pairing di klikapps; isinya setelah # (tidak dikirim ke server) dibaca halaman lalu aplikasi KlikBeam. */
+    static final String PAIR_PAGE = "klikapps.pages.dev/beam";
+
+    /**
+     * Isi QR pairing: kode, alamat, dan nama layanan Bonjour (BeamServer.register), supaya aplikasi KlikBeam yang
+     * memindainya langsung terisi. Tanpa jaringan: tanpa alamat, HP mencari lewat nama.
+     */
+    static String pairUrl(Context c) {
+        List<String> ips = addresses();
+        String name;
+        try {
+            name = java.net.URLEncoder.encode("KlikBeam " + android.os.Build.MODEL, "UTF-8").replace("+", "%20");
+        } catch (java.io.UnsupportedEncodingException e) {
+            name = "";
+        }
+        return "https://" + PAIR_PAGE + "#c=" + pairingCode(c) + (ips.isEmpty() ? "" : "&h=" + join(ips, ",")) + "&n=" + name;
+    }
+
+    /** QR pairing siap dipasang di kartu (lihat HelpVideo.qrCard); null bila terlalu panjang (tidak terjadi di praktik). */
+    static android.graphics.drawable.Drawable pairQr(Context c) {
+        QrCode q = QrCode.encode(pairUrl(c));
+        return q == null ? null : new QrCode.QrDrawable(q);
     }
 
     /** Alamat untuk diketik di HP bila headunit tidak ditemukan otomatis, atau null tanpa jaringan. */

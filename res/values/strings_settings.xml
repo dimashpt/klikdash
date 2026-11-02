@@ -8,13 +8,30 @@
         <item>HEMAT DAYA</item>
         <item>ASISTEN AI</item>
         <item>KLIKBEAM</item>
+        <item>AKUN</item>
+        <item>PEMBARUAN</item>
     </string-array>
     <string-array name="settings_tab_captions">
         <item>TAMPILAN &amp; PINTASAN</item>
         <item>APLIKASI DI LATAR</item>
         <item>PROFIL &amp; SUARA</item>
         <item>MIRROR HP · BETA</item>
+        <item>PARKIR &amp; PERJALANAN</item>
+        <item formatted="false">VERSI %1$s</item>
     </string-array>
+
+    <!-- Kelompok tab Launcher: judul dan ringkasan setelan -->
+    <string name="settings_group_look">TAMPILAN</string>
+    <string name="settings_group_prayer">SHOLAT</string>
+    <string name="settings_group_home">HOME</string>
+    <string name="settings_group_system">SISTEM</string>
+    <string name="settings_group_theme_auto">TEMA OTOMATIS</string>
+    <string name="settings_group_tiles">%1$d PINTASAN</string>
+    <string name="settings_group_alert">PENGINGAT %1$s</string>
+    <string name="settings_group_saver">%1$s · %2$s</string>
+    <string name="settings_group_welcome">SAMBUTAN %1$s</string>
+    <string name="settings_group_pin">PIN AKTIF</string>
+    <string name="settings_group_hidden">%1$d DISEMBUNYIKAN</string>
 
     <string name="settings_on">NYALA</string>
     <string name="settings_off">MATI</string>
@@ -29,6 +46,11 @@
     <string name="settings_clock_desc">Jam di home, jadwal sholat, dan pengingat sholat. Format 12 jam menampilkan AM/PM di samping jam.</string>
     <string name="settings_clock_24">24 JAM</string>
     <string name="settings_clock_12">12 JAM</string>
+    <string name="settings_orient_title">ORIENTASI LAYAR</string>
+    <string name="settings_orient_desc">Otomatis mengikuti rotasi headunit. Pilih MENDATAR bila layar jadi tegak setelah KlikDash dijadikan tampilan utama: panel headunit itu aslinya tegak dan launcher bawaannya yang memaksa mendatar. Berlaku untuk semua layar KlikDash.</string>
+    <string name="settings_orient_auto">OTOMATIS</string>
+    <string name="settings_orient_landscape">MENDATAR</string>
+    <string name="settings_orient_portrait">TEGAK</string>
     <string name="settings_method_title">JADWAL SHOLAT</string>
     <string name="settings_method_desc">Otomatis: JAKIM bila zona waktu headunit Malaysia, selain itu Kemenag RI. Sekarang dihitung dengan %1$s.</string>
     <string name="settings_method_auto">OTOMATIS</string>
@@ -43,9 +65,31 @@
     <string name="settings_lang_desc">Bahasa tampilan KlikDash. Asisten AI punya pengaturan bahasa sendiri di tab Asisten AI.</string>
 
     <string name="settings_theme_title">TEMA</string>
+    <string name="settings_theme_auto_title">TEMA OTOMATIS</string>
+    <string name="settings_theme_auto_desc">Berganti sendiri antara tema siang dan tema malam mengikuti matahari di lokasi headunit. Hari ini siang dari %1$s sampai %2$s.</string>
+    <string name="settings_theme_day_title">TEMA SIANG</string>
+    <string name="settings_theme_day_desc">Dipakai dari matahari terbit (%1$s) sampai terbenam (%2$s).</string>
+    <string name="settings_theme_night_title">TEMA MALAM</string>
+    <string name="settings_theme_night_desc">Dipakai dari matahari terbenam (%1$s) sampai terbit lagi (%2$s).</string>
 
     <string name="settings_tiles_title">JUMLAH PINTASAN</string>
     <string name="settings_tiles_desc">Pintasan di home, termasuk SEMUA. Makin sedikit, makin besar jam dan jadwal sholat di kiri, juga pintasan, ikon, dan tulisannya. Pintasan yang tidak tampil tetap tersimpan dan muncul lagi bila jumlahnya ditambah.</string>
+
+    <string name="settings_saver_title">SCREENSAVER</string>
+    <string name="settings_saver_desc">Jam dan tanggal, muncul bila home tidak disentuh 30 detik atau sekian menit. Hanya di home: tidak menutupi aplikasi lain seperti Maps atau CarPlay. Ketuk layar untuk kembali.</string>
+    <string name="settings_saver_sec">%1$d DTK</string>
+    <string name="settings_saver_sec_long">%1$d DETIK</string>
+    <string name="settings_saver_min_long">%1$d MENIT</string>
+    <string name="settings_saver_bg_title">LATAR SCREENSAVER</string>
+    <string name="settings_saver_bg_black_desc">Hitam polos, paling nyaman di malam hari.</string>
+    <string name="settings_saver_bg_photo_desc">Foto pilihan sendiri, diredupkan sedikit supaya jam tetap terbaca.</string>
+    <string name="settings_saver_black">HITAM</string>
+    <string name="settings_saver_photo">FOTO</string>
+    <string name="settings_saver_change">GANTI FOTO</string>
+    <string name="settings_saver_preview">COBA</string>
+    <string name="settings_saver_no_picker">Headunit ini tidak punya aplikasi untuk memilih foto</string>
+    <string name="settings_saver_saved">Foto screensaver disimpan</string>
+    <string name="settings_saver_failed">Foto tidak bisa dibuka. Coba foto lain.</string>
 
     <string name="settings_welcome_title">SAMBUTAN</string>
     <string name="settings_welcome_desc">Tampil di home saat headunit menyala. %1$s</string>
@@ -109,6 +153,8 @@
 
     <string name="update_title_row">PEMBARUAN</string>
     <string name="update_desc">Versi terpasang %1$s. %2$s Pembaruan diambil dari rilis resmi di GitHub dan hanya dipasang bila tanda tangannya cocok.</string>
+    <string name="update_crash_title">LAPORAN CRASH</string>
+    <string name="update_crash_desc">Bila KlikDash tertutup karena error, laporannya (pesan error, jejak kode, versi, model headunit) dikirim ke pengembang saat online berikutnya, supaya bisa diperbaiki. Tanpa lokasi atau data pribadi; dikaitkan ke akun KlikBeam hanya bila headunit terhubung. Laporan disimpan 30 hari.</string>
     <string name="update_auto_title">CEK UPDATE OTOMATIS</string>
     <string name="update_auto_desc">Sekali tiap headunit menyala, setelah internet tersambung (paling sering 6 jam sekali). Bila ada versi baru, tawarannya muncul saat mobil berhenti; unduhan tetap menunggu ketukan Anda. Pilih Nanti agar versi itu tidak ditawarkan lagi.</string>
     <string name="update_never_checked">Belum pernah dicek.</string>
@@ -148,10 +194,10 @@
     <string name="power_restore">KEMBALIKAN</string>
     <string name="power_desc">Larang aplikasi berjalan diam-diam di latar supaya headunit lebih ringan dan dingin. Aplikasinya tetap terpasang dan bisa dibuka seperti biasa. Aplikasi sistem, navigasi, dan Zlink tidak ditampilkan.</string>
     <string name="power_checking">MEMERIKSA APLIKASI…</string>
-    <string name="power_need_adb_port_wifi">ADB BELUM TERBUKA\n\nUSB debugging sudah aktif, tapi port ADB 5555 tertutup.\nKetuk di sini untuk membukanya tanpa komputer\nlewat Wireless debugging.</string>
-    <string name="power_need_adb_port">ADB BELUM TERBUKA\n\nUSB debugging sudah aktif, tapi port ADB 5555 tertutup.\nBuka dengan adb tcpip 5555 (lihat panduan pemasangan),\nlalu buka tab Hemat Daya lagi.</string>
-    <string name="power_help_video">\n\nKetuk di sini untuk tutorial videonya.</string>
-    <string name="power_need_adb">BUTUH USB DEBUGGING\n\nAktifkan di Pengaturan › Opsi pengembang › USB debugging,\nlalu buka tab Hemat Daya lagi.</string>
+    <string name="power_need_adb_port_wifi">ADB BELUM TERBUKA\n\nUSB debugging sudah aktif, tapi port ADB 5555 tertutup. Buka tanpa komputer lewat Wireless debugging.</string>
+    <string name="power_need_adb_port">ADB BELUM TERBUKA\n\nUSB debugging sudah aktif, tapi port ADB 5555 tertutup. Buka sekali dari laptop Windows: unduh klikapps.pages.dev/adb, lalu klik dua kali file-nya.</string>
+    <string name="power_open_adb">BUKA ADB</string>
+    <string name="power_need_adb">BUTUH USB DEBUGGING\n\nAktifkan di Pengaturan › Opsi pengembang › USB debugging, lalu buka tab Hemat Daya lagi.</string>
     <string name="power_no_apps">TIDAK ADA APLIKASI PIHAK KETIGA</string>
     <plurals name="power_apps">
         <item quantity="other">%d APLIKASI</item>

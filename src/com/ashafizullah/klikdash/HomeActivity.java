@@ -106,6 +106,9 @@ public class HomeActivity extends Activity {
                 loc.watchClock(); // mis. diatur ke tanggal yang jelas salah
             }
             if (!Intent.ACTION_TIME_TICK.equals(i.getAction())) PrayerAlarm.schedule(c); // jam/zona waktu diubah
+            // Tema otomatis: matahari terbit/terbenam → bangun ulang home dengan tema lain, tapi jangan di tengah dialog,
+            // laci, atau screensaver; menit berikutnya dicoba lagi, atau saat home tampil lagi (onResume).
+            if (resumed && !overlaid() && !saverShown()) Theme.stale(HomeActivity.this, themeBuilt);
         }
     };
 
@@ -118,9 +121,21 @@ public class HomeActivity extends Activity {
 
     int themeBuilt;
 
-    @Override protected void attachBaseContext(Context base) { super.attachBaseContext(Lang.wrap(base)); }
+    /** Mode aman setelah crash berulang (lihat Guard): hanya tampilan polos, bagian home lain tidak dibuat. */
+    boolean safe;
+
+    @Override protected void attachBaseContext(Context base) {
+        Guard.install(base);
+        safe = Guard.safe(base);
+        super.attachBaseContext(safe ? Guard.lang(base) : Lang.wrap(base));
+    }
 
     @Override protected void onCreate(Bundle b) {
+        if (safe) {
+            super.onCreate(b);
+            setContentView(Guard.view(this));
+            return;
+        }
         themeBuilt = Theme.apply(this);
         super.onCreate(b);
         dp = getResources().getDisplayMetrics().density;
@@ -133,8 +148,9 @@ public class HomeActivity extends Activity {
         drawer = new HomeDrawer(this);
         status = new HomeStatus(this);
         update = new HomeUpdate(this);
-        // Baru menyala: rotasi sekarang adalah bawaan firmware, catat untuk keepOrientation.
-        if (SystemClock.elapsedRealtime() < 5 * 60_000L) {
+        // Baru menyala: rotasi sekarang adalah bawaan firmware, catat untuk keepOrientation. Orientasi dipilih di
+        // Pengaturan: rotasi sekarang bisa hasil pilihan itu, bukan bawaan firmware.
+        if (SystemClock.elapsedRealtime() < 5 * 60_000L && Orientation.mode(prefs) == Orientation.AUTO) {
             prefs.edit().putInt("homeRotation", getWindowManager().getDefaultDisplay().getRotation()).apply();
         }
 
@@ -170,8 +186,22 @@ public class HomeActivity extends Activity {
         root.addView(home, MATCH, MATCH);
         notch = new MediaNotch(this, fBold, fMonoBold);
         root.addView(notch, MediaNotch.params(dp)); // di bawah laci aplikasi, yang menutupinya saat dibuka
+        quick = new QuickPanel(this);
         root.addView(drawerView, MATCH, MATCH);
-        setContentView(root);
+        root.addView(quick, MATCH, MATCH);
+        saver = new Screensaver.Face(this, fHeavy, fMono);
+        saver.setVisibility(View.GONE);
+        // Paling atas, menutupi laci dan notch juga. Di luar root (yang memberi jarak untuk bilah sistem), supaya saat
+        // bilah status dan navigasi disembunyikan (showSaver) screensaver memenuhi seluruh layar.
+        FrameLayout outer = new FrameLayout(this);
+        outer.addView(root, MATCH, MATCH);
+        outer.addView(saver, MATCH, MATCH);
+        setContentView(outer);
+        // Selalu digambar di belakang bilah sistem dengan jarak stabil (root memberi jaraknya): menyembunyikan bilah
+        // untuk screensaver hanya mengubah tampil/tidaknya, tata letak home tidak dihitung ulang dan tidak bergeser.
+        View decor = getWindow().getDecorView();
+        decor.setSystemUiVisibility(decor.getSystemUiVisibility() | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
         // Keyboard hanya untuk kolom cari di laci: tidak muncul sendiri, dan laci menyusut di atasnya.
         getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
                 | android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
@@ -205,6 +235,7 @@ public class HomeActivity extends Activity {
 
         refreshLock();
         loc.applyExtras(getIntent());
+        Account.applyExtras(this, getIntent());
         updateTime();
         loc.start();
         Tweaks.init(this);
@@ -219,6 +250,11 @@ public class HomeActivity extends Activity {
         }
         welcomeAgain = false;
         if (SystemClock.elapsedRealtime() < 5 * 60_000L) update.schedule();
+        Context app = getApplicationContext();
+        home.postDelayed(() -> Guard.ok(app), 60_000);
+        // KlikBeam: HP yang mulai mirror membuka penerima sendiri. Kode pairing ada di prefs CE, jadi saat direct boot
+        // (headunit berkunci layar, sebelum dibuka) baru dinyalakan setelah buka kunci (unlockRx).
+        if (getSystemService(UserManager.class).isUserUnlocked()) BeamHub.standby(this);
     }
 
     @Override public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
@@ -226,13 +262,18 @@ public class HomeActivity extends Activity {
     }
 
     MediaNotch notch;
-    /** Musik aplikasi lain berganti lagu atau status: hanya notch. */
-    final Runnable onMedia = () -> notch.refresh();
+    /** Musik aplikasi lain berganti lagu atau status: hanya notch (dan baris "sedang diputar" screensaver). */
+    final Runnable onMedia = this::mediaChanged;
     /** Murattal berganti ayat atau status: hanya ubin Al-Qur'an ("▶ surah : ayat") dan notch yang berubah. */
     final Runnable onQuran = () -> {
         for (HomeViews.Tile t : tiles) if (t != null && t.quran()) t.invalidate();
-        notch.refresh();
+        mediaChanged();
     };
+
+    void mediaChanged() {
+        notch.refresh();
+        if (saverShown()) saver.invalidate();
+    }
 
     /**
      * Dzikir berganti bacaan/putaran atau status: notch selalu, ubin Dzikir ("▶ PAGI/PETANG") hanya bila yang
@@ -240,7 +281,7 @@ public class HomeActivity extends Activity {
      */
     String dzikirShown = "";
     final Runnable onDzikir = () -> {
-        notch.refresh();
+        mediaChanged();
         String now = DzikirService.playing + DzikirService.period;
         if (now.equals(dzikirShown)) return;
         dzikirShown = now;
@@ -259,9 +300,12 @@ public class HomeActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
-        if (Theme.stale(this, themeBuilt)) return;
-        // Jangan reloadPrefs di setiap resume: apply() async + baca prefs lama bisa mengembalikan ubin default.
-        // Reload hanya setelah bangun (ACC), buka Pengaturan, atau CE terbuka.
+        ErrorLog.flush(this); // laporan crash yang tertunda (paling sering tiap 10 menit)
+        BeamHub.homeFront = !safe;
+        if (android.os.Build.VERSION.SDK_INT < 29) SplitScreen.home(true); // Android 10+: onTopResumedActivityChanged
+        if (safe || Theme.stale(this, themeBuilt)) return;
+        // Jangan reloadPrefs di setiap resume: salinan prefs lama + MODE_MULTI_PROCESS di modul lain bisa
+        // menimpa ubin. Reload hanya setelah bangun (ACC), buka Pengaturan, atau CE terbuka (wakeRx/unlockRx).
         if (prefsReloadOnResume) {
             prefsReloadOnResume = false;
             reloadPrefs();
@@ -275,14 +319,18 @@ public class HomeActivity extends Activity {
         MediaListener.start(this);
         PrayerAlarm.home = new java.lang.ref.WeakReference<>(this);
         PrayerAlarm.schedule(this);
+        TripService.sync(this); // akun KlikBeam: proses dimulai ulang atau izin lokasi baru diberikan
         apps.untrim();
         refreshTiles();
         updateTime();
         prayerView.startTicking();
         status.start();
+        beamShown = BeamHub.running();
+        BeamHub.addListener(beamRx);
         refreshDefaultHome();
         loc.startSpeed();
         resumed = true;
+        poke();
         update.resume();
     }
 
@@ -294,7 +342,8 @@ public class HomeActivity extends Activity {
     // ---------------------------------------------------------------- kunci layar (ScreenLock)
 
     ScreenLock.Icon lockIcon;
-    TextView gear;
+    /** Menu ☰ di kiri atas panel jam: membuka panel cepat (⚙ Pengaturan kini di dalamnya). */
+    View gear;
     boolean locked;
     /** Gestur yang dimulai di luar gembok saat terkunci: seluruhnya diabaikan sampai jari diangkat. */
     boolean swallow;
@@ -325,8 +374,81 @@ public class HomeActivity extends Activity {
         });
     }
 
+    // ---------------------------------------------------------------- screensaver
+
+    Screensaver.Face saver;
+    /** Gestur yang menutup screensaver: seluruhnya diabaikan, supaya ketukan itu tidak membuka ubin di bawahnya. */
+    boolean saverSwallow;
+
+    boolean saverShown() { return saver != null && saver.getVisibility() == View.VISIBLE; }
+
+    /**
+     * Ada aktivitas (sentuhan, tombol, home tampil lagi, bangun dari tidur): tutup screensaver dan mulai hitung ulang
+     * waktu tanpa sentuhan (Pengaturan › Screensaver). Mobil berjalan tidak menahannya: screensaver hanya ada di home,
+     * jadi Maps, CarPlay, dan aplikasi lain di depan tidak pernah tertutup.
+     */
+    void poke() {
+        if (home == null) return;
+        home.removeCallbacks(idle);
+        hideSaver();
+        int s = Screensaver.seconds(prefs);
+        if (s > 0 && resumed) home.postDelayed(idle, s * 1000L);
+    }
+
+    void hideSaver() {
+        if (!saverShown()) return;
+        saver.setVisibility(View.GONE);
+        saver.stop();
+        setBarsHidden(false); // bilah sistem kembali
+    }
+
+    static final int HIDE_BARS = View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
+
+    /** Hanya bendera tampil/sembunyi; bendera lain (tata letak, ikon gelap tema Siang dari Theme.apply) tetap. */
+    void setBarsHidden(boolean hidden) {
+        View d = getWindow().getDecorView();
+        int f = d.getSystemUiVisibility();
+        d.setSystemUiVisibility(hidden ? f | HIDE_BARS : f & ~HIDE_BARS);
+    }
+
+    /**
+     * Screensaver layar penuh: bilah status dan navigasi headunit disembunyikan (imersif; geser dari tepi menampilkannya
+     * sebentar). Ketuk sekali untuk kembali ke home dengan bilah sistem.
+     */
+    void showSaver() {
+        setBarsHidden(true);
+        saver.setVisibility(View.VISIBLE);
+        saver.start(prefs);
+    }
+
+    /** Dialog (PIN, pembaruan), laci aplikasi, atau sambutan sedang tampil di atas home. */
+    boolean overlaid() {
+        return !hasWindowFocus() || drawer.isOpen() || quick.isOpen()
+                || getWindow().getDecorView().findViewWithTag(Welcome.class) != null;
+    }
+
+    final Runnable idle = new Runnable() {
+        @Override public void run() {
+            if (!resumed || Screensaver.seconds(prefs) == 0) return;
+            // Ada yang tampil di atas home (dialog, laci, sambutan, atau KlikBeam melayang yang sedang ditonton; sentuhan di
+            // jendela itu tidak sampai ke home): coba lagi nanti, jangan menutupinya.
+            if (overlaid() || BeamHub.running()) {
+                home.postDelayed(this, 30_000);
+                return;
+            }
+            showSaver();
+        }
+    };
+
     /** Terkunci: hanya gembok (dan sambutan, yang menutup sendiri) yang menerima sentuhan. */
     @Override public boolean dispatchTouchEvent(MotionEvent e) {
+        if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
+            saverSwallow = saverShown();
+            poke();
+        }
+        if (saverSwallow) return true;
+        if (!locked && edgeSwipe(e)) return true;
         if (!locked) return super.dispatchTouchEvent(e);
         if (e.getActionMasked() == MotionEvent.ACTION_DOWN) {
             int[] at = new int[2];
@@ -344,8 +466,41 @@ public class HomeActivity extends Activity {
         return super.dispatchTouchEvent(e);
     }
 
+    /**
+     * Geser dari tepi kiri (QuickPanel.EDGE_DP) ke kanan membuka panel cepat, seperti launcher bawaan sebagian headunit.
+     * Sentuhan yang sudah diteruskan ke ubin di bawahnya dibatalkan. true: kejadian ini milik gestur.
+     */
+    boolean edgeSwipe(MotionEvent e) {
+        switch (e.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                edgeTracking = quick != null && !quick.isOpen() && !drawer.isOpen() && e.getX() < px(QuickPanel.EDGE_DP);
+                edgeX = e.getX();
+                edgeY = e.getY();
+                return false;
+            case MotionEvent.ACTION_MOVE:
+                if (!edgeTracking) return false;
+                float dx = e.getX() - edgeX, dy = Math.abs(e.getY() - edgeY);
+                if (dx > px(QuickPanel.SWIPE_DP) && dx > dy) {
+                    edgeTracking = false;
+                    MotionEvent cancel = MotionEvent.obtain(e);
+                    cancel.setAction(MotionEvent.ACTION_CANCEL);
+                    super.dispatchTouchEvent(cancel);
+                    cancel.recycle();
+                    quick.open();
+                    return true;
+                }
+                return false;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                edgeTracking = false;
+                return false;
+        }
+        return false;
+    }
+
     /** Tombol arah/OK (remote, keyboard) juga diabaikan saat terkunci; tombol media tetap jalan. */
     @Override public boolean dispatchKeyEvent(KeyEvent e) {
+        if (e.getAction() == KeyEvent.ACTION_DOWN) poke(); // tombol setir/remote juga membangunkan; tetap diteruskan
         if (locked) {
             switch (e.getKeyCode()) {
                 case KeyEvent.KEYCODE_DPAD_UP: case KeyEvent.KEYCODE_DPAD_DOWN: case KeyEvent.KEYCODE_DPAD_LEFT:
@@ -398,11 +553,48 @@ public class HomeActivity extends Activity {
     /** Di antara onResume dan onPause. */
     boolean resumed;
 
+    /** Panel cepat tepi kiri (volume, kecerahan, ...). */
+    QuickPanel quick;
+    /** Sentuhan dimulai di tepi kiri home: digeser ke kanan membuka panel cepat. */
+    boolean edgeTracking;
+    float edgeX, edgeY;
+
+    /**
+     * KlikBeam mulai tampil (mis. melayang di atas home): screensaver ditutup. Selesai: waktu tanpa sentuhan dihitung
+     * ulang dari awal, bukan langsung muncul.
+     */
+    boolean beamShown;
+    final BeamHub.Listener beamRx = () -> {
+        boolean shown = BeamHub.running();
+        if (shown == beamShown) return;
+        beamShown = shown;
+        if (shown) hideSaver(); else poke();
+    };
+
+    /**
+     * Android 10+: home tetap "resumed" selama terlihat di belakang jendela freeform layar terbagi, jadi yang dipakai
+     * untuk pembatas {@link SplitScreen} adalah apakah home yang paling depan.
+     */
+    @Override public void onTopResumedActivityChanged(boolean top) {
+        super.onTopResumedActivityChanged(top);
+        SplitScreen.home(top);
+    }
+
     @Override protected void onPause() {
+        BeamHub.homeFront = false;
+        SplitScreen.home(false);
+        if (safe) {
+            super.onPause();
+            return;
+        }
         resumed = false;
+        quick.close();
+        home.removeCallbacks(idle);
+        hideSaver(); // kembali ke home berarti home, bukan screensaver
         loc.stopSpeed();
         prayerView.stopTicking();
         status.stop();
+        BeamHub.removeListener(beamRx);
         QuranService.listeners.remove(onQuran);
         DzikirService.listeners.remove(onDzikir);
         MediaListener.listeners.remove(onMedia);
@@ -424,6 +616,7 @@ public class HomeActivity extends Activity {
             reloadPrefs();
             refreshTiles();
             updateTime();
+            poke();
             Welcome.maybeShow(HomeActivity.this, prefs);
             home.removeCallbacks(warmVoice);
             home.postDelayed(warmVoice, 10_000);
@@ -441,6 +634,7 @@ public class HomeActivity extends Activity {
 
     @Override protected void onStop() {
         super.onStop();
+        if (safe) return;
         // Zlink membuka tampilannya sendiri saat CarPlay nirkabel tersambung setelah headunit menyala. Dalam
         // 3 menit pertama, kembalikan ke home; sesi CarPlay tetap jalan di latar dan bisa dibuka dari ubin Zlink.
         if (!userLaunch && SystemClock.elapsedRealtime() - wakeAt < 180_000) {
@@ -451,27 +645,33 @@ public class HomeActivity extends Activity {
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (safe) return;
         loc.applyExtras(intent);
+        Account.applyExtras(this, intent);
         if (drawer.isOpen()) drawer.close();
     }
 
     @Override public void onBackPressed() {
-        if (drawer.isOpen()) drawer.close();
+        if (safe) return;
+        if (quick.isOpen()) quick.close();
+        else if (drawer.isOpen()) drawer.close();
     }
 
     /** RAM sistem menipis saat home di latar: lepas ikon laci (lihat HomeApps.trim). */
     @Override public void onTrimMemory(int level) {
         super.onTrimMemory(level);
-        if (level >= TRIM_MEMORY_BACKGROUND) apps.trim();
+        if (!safe && level >= TRIM_MEMORY_BACKGROUND) apps.trim();
     }
 
     @Override protected void onDestroy() {
-        update.cancel();
-        loc.stop();
-        unregisterReceiver(timeRx);
-        unregisterReceiver(pkgRx);
-        unregisterReceiver(wakeRx);
-        try { unregisterReceiver(unlockRx); } catch (IllegalArgumentException ignored) { }
+        if (!safe) {
+            update.cancel();
+            loc.stop();
+            unregisterReceiver(timeRx);
+            unregisterReceiver(pkgRx);
+            unregisterReceiver(wakeRx);
+            try { unregisterReceiver(unlockRx); } catch (IllegalArgumentException ignored) { }
+        }
         super.onDestroy();
     }
 
@@ -484,6 +684,8 @@ public class HomeActivity extends Activity {
      * sensor putar membiarkannya begitu setelah aplikasi itu ditutup. Firmware NWD mengabaikan setRequestedOrientation
      * dari home, jadi rotasinya dikembalikan lewat pengaturan sistem (ADB lokal, seperti Tweaks). Rotasi bawaan dicatat
      * saat headunit baru menyala; NWD: ro.boot.nwd.rotation. Belum diketahui: dibiarkan (mis. headunit tegak).
+     * Orientasi dipilih di Pengaturan (lihat Orientation): di NWD diputar ke sana dengan cara yang sama, di headunit
+     * lain setRequestedOrientation dari Theme.apply sudah cukup.
      */
     void keepOrientation() {
         // Di thread latar: getprop pertama menjalankan 2–3 proses, ±50–70 ms di onResume saat cold start (atrace).
@@ -496,7 +698,11 @@ public class HomeActivity extends Activity {
                 }
                 nwdRotation = r;
             }
-            int want = p.getInt("homeRotation", nwdRotation);
+            int mode = Orientation.mode(p), want = p.getInt("homeRotation", nwdRotation);
+            if (mode != Orientation.AUTO) {
+                if (!HomeSwitch.isNwd()) return;
+                want = Orientation.rotation(mode, getWindowManager().getDefaultDisplay(), want);
+            }
             if (want < 0 || want > 3 || getWindowManager().getDefaultDisplay().getRotation() == want) return;
             boolean free = android.provider.Settings.System.getInt(getContentResolver(),
                     android.provider.Settings.System.ACCELEROMETER_ROTATION, 0) == 1;
@@ -536,6 +742,7 @@ public class HomeActivity extends Activity {
             reloadPrefs();
             apps.load();
             updateTime();
+            BeamHub.standby(HomeActivity.this);
         }
     };
 
@@ -556,6 +763,7 @@ public class HomeActivity extends Activity {
                 now.get(Calendar.YEAR)));
         show(hijri, Hijri.today(now.getTimeInMillis(), prefs.getInt("hijriOffset", 0)));
         gauge.invalidate();
+        if (saverShown()) saver.tick();
         int dz = loc.dzikirPagi() ? 1 : 0; // ubin Dzikir berganti PAGI → PETANG saat Ashar, walau home terus tampil
         if (dz != dzikirState) {
             dzikirState = dz;
@@ -581,6 +789,8 @@ public class HomeActivity extends Activity {
     }
 
     static final float SPEED_RATIO = 0.43f; // ukuran angka kecepatan terhadap jam
+    /** Jarak terkecil jam–kecepatan (dp): garis pemisah 1dp dengan 12dp di tiap sisinya; ikut dihitung saat jam diukur. */
+    static final int SPEED_GAP = 25;
 
     View buildHome() {
         int n = HomeApps.tileCount(prefs);
@@ -631,8 +841,8 @@ public class HomeActivity extends Activity {
         // Portrait: panel jam di atas, ubin di bawah.
         float leftDp = portrait ? wDp - 48 : big == 0 ? Math.max(260, Math.min(480, wDp * 0.34f))
                 : Math.max(260, Math.min(wDp * 0.55f,
-                        Math.max(wDp * 0.34f, Math.min(150 + 40 * big, clockFit) * per100 / 100 + 64 + 2 * inset)));
-        float clockSp = Math.min(150 + 40 * big, (leftDp - 24 - 2 * inset) / per100 * 100);
+                        Math.max(wDp * 0.34f, Math.min(150 + 40 * big, clockFit) * per100 / 100 + 64 + SPEED_GAP + 2 * inset)));
+        float clockSp = Math.min(150 + 40 * big, (leftDp - 24 - SPEED_GAP - 2 * inset) / per100 * 100);
         if (big == 0) clockSp = Math.min(clockSp, panelH * 0.21f);
         clockSp = Math.max(56, Math.min(clockSp, clockFit));
 
@@ -662,19 +872,19 @@ public class HomeActivity extends Activity {
         top.setOrientation(LinearLayout.HORIZONTAL);
         // Model dari sistem (mis. "K2401/K2401P/k2401M" → K2401), bukan ditulis mati.
         String model = android.os.Build.MODEL.split("[/ ]")[0].toUpperCase(Locale.US);
+        // Menu ☰ di kiri: panel cepat (volume, kecerahan, Pengaturan KlikDash), yang juga keluar dari kiri dan bisa
+        // digeser dari tepi kiri. Garisnya rata dengan tepi kiri jam; kotak sentuh 48dp walau ikonnya kecil.
+        gear = new QuickPanel.Icon(this);
+        gear.setContentDescription(getString(R.string.quick_title));
+        gear.setOnClickListener(v -> quick.open());
+        top.addView(gear, new LinearLayout.LayoutParams(px(40), px(48)));
         TextView tag = text("KLIKDASH  ·  " + model, fMono, 12, DIM);
         tag.setLetterSpacing(0.25f);
         top.addView(tag, new LinearLayout.LayoutParams(0, WRAP, 1f));
-        // Pengaturan KlikDash (tampilan, Hemat Daya, asisten AI). Kotak sentuh 48dp walau ikonnya kecil.
         // Kunci layar (PIN di Pengaturan): gembok muncul hanya bila PIN sudah diatur, lihat refreshLock.
         lockIcon = new ScreenLock.Icon(this);
         lockIcon.setOnClickListener(v -> toggleLock());
         top.addView(lockIcon, new LinearLayout.LayoutParams(px(48), px(48)));
-        gear = text("⚙", fMonoBold, 18, DIM);
-        gear.setGravity(Gravity.CENTER);
-        gear.setContentDescription(getString(R.string.app_settings));
-        gear.setOnClickListener(v -> openSettings());
-        top.addView(gear, new LinearLayout.LayoutParams(px(48), px(48)));
         top.setGravity(Gravity.CENTER_VERTICAL);
         left.addView(top);
 
@@ -702,7 +912,8 @@ public class HomeActivity extends Activity {
         left.addView(makeDefault, ml);
         left.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
 
-        // Jam di kiri, kecepatan (GPS) di kanan pada garis dasar yang sama, seperti panel instrumen.
+        // Jam di kiri, kecepatan (GPS) di kanan pada garis dasar yang sama, seperti panel instrumen. Garis pemisah tipis
+        // dan warna DIM (aksen di atas 100, lihat HomeLocation) supaya kecepatan tidak terbaca sebagai bagian dari jam.
         LinearLayout clockRow = new LinearLayout(this);
         clockRow.setOrientation(LinearLayout.HORIZONTAL);
         clockRow.setGravity(Gravity.BOTTOM);
@@ -718,19 +929,32 @@ public class HomeActivity extends Activity {
         clockRow.addView(ampm, al);
         clockRow.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         LinearLayout speedBox = new LinearLayout(this);
-        speedBox.setOrientation(LinearLayout.VERTICAL);
-        speedBox.setGravity(Gravity.END);
-        speed = text("--", fHeavy, clockSp * SPEED_RATIO, TEXT);
-        // WRAP, bukan bawaan MATCH_PARENT: hanya lebar WRAP yang diukur ulang saat angkanya berubah. Dengan MATCH_PARENT
-        // lebarnya tetap selebar "0" atau "--" saat pertama tampil, sehingga angka 2–3 digit terpotong di kanan.
-        speedBox.addView(speed, new LinearLayout.LayoutParams(WRAP, WRAP));
+        speedBox.setOrientation(LinearLayout.HORIZONTAL);
+        // Pemisah setinggi kolom kecepatan, tepat di kirinya; ruang sisa tetap di antara jam dan pemisah.
+        View rule = new View(this);
+        rule.setBackgroundColor(LINE);
+        speedBox.addView(rule, new LinearLayout.LayoutParams(px(1), MATCH));
+        LinearLayout speedCol = new LinearLayout(this);
+        speedCol.setOrientation(LinearLayout.VERTICAL);
+        speedCol.setGravity(Gravity.END);
+        speed = text("--", fHeavy, clockSp * SPEED_RATIO, DIM);
+        speed.setGravity(Gravity.END);
+        // Selebar 3 digit terlebar (sudah dihitung di per100): pemisah tidak bergeser saat angkanya berubah. Lebar tetap
+        // ini juga menggantikan WRAP yang dulu perlu supaya angka 2–3 digit tidak terpotong di kanan.
+        speed.setMinWidth(Math.round(3 * digit * clockSp * SPEED_RATIO / 100));
+        speedCol.addView(speed, new LinearLayout.LayoutParams(WRAP, WRAP));
         TextView unit = text(getString(R.string.home_speed_unit), fMono, 10 * k, DIM);
         unit.setLetterSpacing(0.25f);
         LinearLayout.LayoutParams ul = new LinearLayout.LayoutParams(WRAP, WRAP);
         ul.topMargin = px(4);
-        ul.bottomMargin = px(10);
-        speedBox.addView(unit, ul);
-        clockRow.addView(speedBox);
+        speedCol.addView(unit, ul);
+        LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(WRAP, WRAP);
+        cl.leftMargin = px(12);
+        speedBox.addView(speedCol, cl);
+        LinearLayout.LayoutParams sbl = new LinearLayout.LayoutParams(WRAP, WRAP);
+        sbl.leftMargin = px(12);
+        sbl.bottomMargin = px(10);
+        clockRow.addView(speedBox, sbl);
         left.addView(clockRow, new LinearLayout.LayoutParams(MATCH, WRAP));
 
         View bar = new View(this);

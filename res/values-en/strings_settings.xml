@@ -7,13 +7,30 @@
         <item>POWER SAVER</item>
         <item>AI ASSISTANT</item>
         <item>KLIKBEAM</item>
+        <item>ACCOUNT</item>
+        <item>UPDATES</item>
     </string-array>
     <string-array name="settings_tab_captions">
         <item>DISPLAY &amp; SHORTCUTS</item>
         <item>BACKGROUND APPS</item>
         <item>PROFILES &amp; VOICE</item>
         <item>PHONE MIRROR · BETA</item>
+        <item>PARKING &amp; TRIPS</item>
+        <item formatted="false">VERSION %1$s</item>
     </string-array>
+
+    <!-- Kelompok tab Launcher: judul dan ringkasan setelan -->
+    <string name="settings_group_look">DISPLAY</string>
+    <string name="settings_group_prayer">PRAYER</string>
+    <string name="settings_group_home">HOME</string>
+    <string name="settings_group_system">SYSTEM</string>
+    <string name="settings_group_theme_auto">AUTO THEME</string>
+    <string name="settings_group_tiles">%1$d TILES</string>
+    <string name="settings_group_alert">ALERTS %1$s</string>
+    <string name="settings_group_saver">%1$s · %2$s</string>
+    <string name="settings_group_welcome">WELCOME %1$s</string>
+    <string name="settings_group_pin">PIN ON</string>
+    <string name="settings_group_hidden">%1$d HIDDEN</string>
 
     <string name="settings_on">ON</string>
     <string name="settings_off">OFF</string>
@@ -28,6 +45,11 @@
     <string name="settings_clock_desc">Clock on the home screen, prayer times, and prayer reminders. 12-hour shows AM/PM next to the clock.</string>
     <string name="settings_clock_24">24-HOUR</string>
     <string name="settings_clock_12">12-HOUR</string>
+    <string name="settings_orient_title">SCREEN ORIENTATION</string>
+    <string name="settings_orient_desc">Auto follows the headunit\'s rotation. Choose LANDSCAPE if the screen turns portrait after KlikDash becomes the home screen: that headunit\'s panel is natively portrait and its stock launcher forces landscape. Applies to every KlikDash screen.</string>
+    <string name="settings_orient_auto">AUTO</string>
+    <string name="settings_orient_landscape">LANDSCAPE</string>
+    <string name="settings_orient_portrait">PORTRAIT</string>
     <string name="settings_method_title">PRAYER TIMES</string>
     <string name="settings_method_desc">Automatic: JAKIM when the headunit\'s time zone is Malaysia, otherwise Kemenag (Indonesia). Now calculated with %1$s.</string>
     <string name="settings_method_auto">AUTO</string>
@@ -42,9 +64,31 @@
     <string name="settings_lang_desc">KlikDash display language. The AI assistant has its own language setting in the AI Assistant tab.</string>
 
     <string name="settings_theme_title">THEME</string>
+    <string name="settings_theme_auto_title">AUTOMATIC THEME</string>
+    <string name="settings_theme_auto_desc">Switches between a day theme and a night theme with the sun at the headunit\'s location. Today, day runs from %1$s to %2$s.</string>
+    <string name="settings_theme_day_title">DAY THEME</string>
+    <string name="settings_theme_day_desc">Used from sunrise (%1$s) to sunset (%2$s).</string>
+    <string name="settings_theme_night_title">NIGHT THEME</string>
+    <string name="settings_theme_night_desc">Used from sunset (%1$s) until sunrise (%2$s).</string>
 
     <string name="settings_tiles_title">NUMBER OF SHORTCUTS</string>
     <string name="settings_tiles_desc">Shortcuts on the home screen, including ALL. Fewer shortcuts make the clock, prayer times, shortcuts, icons and labels bigger. Hidden shortcuts are kept and come back when you raise the number.</string>
+
+    <string name="settings_saver_title">SCREENSAVER</string>
+    <string name="settings_saver_desc">The clock and date, shown when the home screen has not been touched for 30 seconds or the chosen minutes. Only on the home screen: it never covers other apps such as Maps or CarPlay. Tap the screen to go back.</string>
+    <string name="settings_saver_sec">%1$d SEC</string>
+    <string name="settings_saver_sec_long">%1$d SEC</string>
+    <string name="settings_saver_min_long">%1$d MIN</string>
+    <string name="settings_saver_bg_title">SCREENSAVER BACKGROUND</string>
+    <string name="settings_saver_bg_black_desc">Plain black, easiest on the eyes at night.</string>
+    <string name="settings_saver_bg_photo_desc">A photo of your choice, dimmed a little so the clock stays readable.</string>
+    <string name="settings_saver_black">BLACK</string>
+    <string name="settings_saver_photo">PHOTO</string>
+    <string name="settings_saver_change">CHANGE PHOTO</string>
+    <string name="settings_saver_preview">TRY</string>
+    <string name="settings_saver_no_picker">This headunit has no app for picking photos</string>
+    <string name="settings_saver_saved">Screensaver photo saved</string>
+    <string name="settings_saver_failed">The photo could not be opened. Try another one.</string>
 
     <string name="settings_welcome_title">WELCOME</string>
     <string name="settings_welcome_desc">Shown on the home screen when the headunit starts. %1$s</string>
@@ -109,6 +153,8 @@
 
     <string name="update_title_row">UPDATES</string>
     <string name="update_desc">Installed version %1$s. %2$s Updates come from the official releases on GitHub and are only installed when the signature matches.</string>
+    <string name="update_crash_title">CRASH REPORTS</string>
+    <string name="update_crash_desc">When KlikDash closes because of an error, a report (error message, stack trace, version, headunit model) is sent to the developer the next time the headunit is online, so it can be fixed. No location or personal data; linked to a KlikBeam account only if the headunit is linked. Reports are kept for 30 days.</string>
     <string name="update_auto_title">AUTOMATIC UPDATE CHECK</string>
     <string name="update_auto_desc">Once each time the headunit turns on, after the internet connects (at most every 6 hours). When a new version is out, the offer appears while the car is stopped; nothing downloads until you tap. Choose Later to skip that version.</string>
     <string name="update_never_checked">Never checked.</string>
@@ -151,10 +197,10 @@
     <string name="power_restore">RESTORE</string>
     <string name="power_desc">Stop apps from running silently in the background so the headunit stays lighter and cooler. The apps stay installed and open as usual. System apps, navigation and Zlink are not listed.</string>
     <string name="power_checking">CHECKING APPS…</string>
-    <string name="power_need_adb_port_wifi">ADB NOT OPEN YET\n\nUSB debugging is on, but ADB port 5555 is closed.\nTap here to open it without a computer\nover Wireless debugging.</string>
-    <string name="power_need_adb_port">ADB NOT OPEN YET\n\nUSB debugging is on, but ADB port 5555 is closed.\nOpen it with adb tcpip 5555 (see the install guide),\nthen open the Power Saver tab again.</string>
-    <string name="power_help_video">\n\nTap here for the video tutorial.</string>
-    <string name="power_need_adb">USB DEBUGGING NEEDED\n\nTurn it on in Settings › Developer options › USB debugging,\nthen open the Power Saver tab again.</string>
+    <string name="power_need_adb_port_wifi">ADB NOT OPEN YET\n\nUSB debugging is on, but ADB port 5555 is closed. Open it without a computer over Wireless debugging.</string>
+    <string name="power_need_adb_port">ADB NOT OPEN YET\n\nUSB debugging is on, but ADB port 5555 is closed. Open it once from a Windows laptop: download klikapps.pages.dev/adb, then double-click the file.</string>
+    <string name="power_open_adb">OPEN ADB</string>
+    <string name="power_need_adb">USB DEBUGGING NEEDED\n\nTurn it on in Settings › Developer options › USB debugging, then open the Power Saver tab again.</string>
     <string name="power_no_apps">NO THIRD-PARTY APPS</string>
     <plurals name="power_apps">
         <item quantity="one">%d APP</item>

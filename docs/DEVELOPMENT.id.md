@@ -10,7 +10,7 @@ klikdash/
 ├── build.sh                  build + pasang ke headunit
 ├── klikdash.keystore         kunci tanda tangan APK (jangan hilang, lihat Catatan)
 ├── src/com/ashafizullah/klikdash/   dikelompokkan per fitur; tiap kelas diawali komentar penjelasan
-│   ├── Home*.java, Hijri, Welcome, ScreenLock   launcher: ubin, laci, panel jam, tanggal Hijriah, sambutan, kunci PIN
+│   ├── Home*.java, Hijri, Welcome, ScreenLock, Screensaver   launcher: ubin, laci, panel jam, tanggal Hijriah, sambutan, kunci PIN, screensaver
 │   ├── Prayer*.java, Clock      jadwal sholat (parameter Kemenag RI), pengingat sholat, jam dari GPS
 │   ├── Quran*.java              mushaf, pemutar murattal di latar
 │   ├── MediaNotch, MediaListener   notch pemutar di home: murattal, dzikir, musik aplikasi lain (MediaSession)
@@ -19,7 +19,7 @@ klikdash/
 │   ├── Ask*, Ai*.java           TANYA AI: suara, perintah mobil, profil & kunci API terenkripsi, tab pengaturan
 │   ├── Beam*.java               KlikBeam (beta): mirror layar HP lewat WiFi
 │   ├── Theme, Lang, Key, Notice   palet tema, bahasa antarmuka, tombol, notifikasi
-│   └── Updater, UpdatedReceiver, HomeSwitch, Tweaks, Compat   update, tampilan utama, ADB lokal, Android 7–8
+│   └── Updater, UpdatedReceiver, HomeSwitch, Guard, Tweaks, Compat   update, tampilan utama, mode aman saat crash berulang, ADB lokal, Android 7–8
 ├── res/                      tema, ikon vektor, sertifikat root ISRG untuk Android 7.0 (network_security.xml)
 ├── assets/
 │   ├── dzikir.json           dzikir pagi & petang, dibangun dari KlikBand (tools/build_dzikir.mjs)
@@ -119,7 +119,7 @@ python3 -I tools/build_quran.py --en assets/quran-en.txt
 ## Terjemahan antarmuka
 
 Tampilan berbahasa Indonesia (`res/values/strings_*.xml`, bawaan) dan Inggris (`res/values-en/strings_*.xml`),
-dipilih di **⚙ › Launcher › BAHASA**, tidak mengikuti bahasa sistem (`Lang.java`).
+dipilih di **⚙ › Launcher › TAMPILAN › BAHASA**, tidak mengikuti bahasa sistem (`Lang.java`).
 - Setiap teks UI baru masuk ke **kedua** folder dengan nama yang sama. Pakai argumen posisional (`%1$s`) dan
   `<plurals>` untuk bilangan. Jangan membandingkan atau menyimpan teks tampilan: simpan kunci terpisah.
 - Aktivitas dan `QuranService` membungkus context di `attachBaseContext`. Receiver dan context aplikasi

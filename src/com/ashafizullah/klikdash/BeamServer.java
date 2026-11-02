@@ -20,9 +20,15 @@ import java.net.SocketTimeoutException;
  * Server TCP protokol KlikBeam v1 (docs/PROTOCOL.md di repo KlikBeam, yang juga berisi aplikasi pengirim iOS):
  * menerima koneksi dari HP, memeriksa kode pairing, lalu meneruskan CONFIG dan FRAME ke {@link BeamDecoder}.
  * Satu pengirim sekaligus; koneksi baru yang lolos handshake menggantikan yang lama. Juga mendaftarkan layanan
- * Bonjour/NSD supaya HP menemukan headunit.
+ * Bonjour/NSD supaya HP menemukan headunit. Saat penerima ditutup pengguna, pengirim diberi STOP supaya siaran di HP
+ * ikut berhenti (tanpa itu HP menganggapnya putus dan mencoba menyambung ulang hingga 60 detik).
  */
 final class BeamServer {
+    /** Dipanggil setelah kode pairing cocok; false: tutup tanpa jawaban (pengirim menganggapnya putus, bukan kode salah). */
+    interface Gate {
+        boolean admit();
+    }
+
     interface Listener {
         void onWaiting();
         void onConnected(String from);
@@ -38,6 +44,8 @@ final class BeamServer {
     private static final String TAG = "KlikBeam";
     private static final int MAGIC = 0x4B424D31; // "KBM1"
     private static final int T_CONFIG = 1, T_FRAME = 2, T_PING = 3;
+    /** Penerima → pengirim: penerima ditutup, hentikan siaran (pengirim lama tidak membacanya dan menyambung ulang). */
+    private static final int T_STOP = 4;
     private static final int MAX_LEN = 8 << 20;
     private static final int IDLE_TIMEOUT_MS = 6000;
 
@@ -45,6 +53,7 @@ final class BeamServer {
     private final int code;
     private final BeamDecoder decoder;
     private final Listener listener;
+    private final Gate gate;
     private volatile ServerSocket server;
     private volatile boolean stopped;
     private Thread acceptThread;
@@ -52,11 +61,12 @@ final class BeamServer {
     private NsdManager nsd;
     private NsdManager.RegistrationListener nsdListener;
 
-    BeamServer(Context context, int code, BeamDecoder decoder, Listener listener) {
+    BeamServer(Context context, int code, BeamDecoder decoder, Listener listener, Gate gate) {
         this.context = context.getApplicationContext();
         this.code = code;
         this.decoder = decoder;
         this.listener = listener;
+        this.gate = gate;
     }
 
     void start() {
@@ -71,9 +81,32 @@ final class BeamServer {
         stopped = true;
         unregister();
         closeQuietly(server);
-        synchronized (this) { closeQuietly(client); }
+        final Socket c;
+        synchronized (this) {
+            c = client;
+            client = null; // serve() tidak lagi melapor onEnded: penerima memang ditutup
+        }
+        // Di thread lain: stop() dipanggil dari tombol (thread UI melarang jaringan). Socket tidak langsung ditutup:
+        // close() dengan data masuk yang belum dibaca mengirim RST, dan HP bisa membuang STOP yang belum dibacanya.
+        // serve() terus membaca (dan membuang) sampai HP menutup koneksinya; batasnya 2 detik.
+        if (c != null) new Thread(() -> {
+            sendStop(c);
+            try { Thread.sleep(2000); } catch (InterruptedException ignored) { }
+            closeQuietly(c);
+        }, "KlikBeam-stop").start();
         if (acceptThread != null) acceptThread.interrupt();
         decoder.stop();
+    }
+
+    /** [u8 STOP][u32 0], lalu FIN. Cukup sekali: pengirim lama tidak membacanya, yang baru menutup koneksi. */
+    private static void sendStop(Socket s) {
+        try {
+            OutputStream out = s.getOutputStream();
+            out.write(new byte[]{T_STOP, 0, 0, 0, 0});
+            out.flush();
+            s.shutdownOutput();
+        } catch (IOException ignored) {
+        }
     }
 
     private void acceptLoop() {
@@ -116,6 +149,10 @@ final class BeamServer {
                 listener.onRejected(from);
                 return;
             }
+            if (!gate.admit()) {
+                Log.i(TAG, "ditunda (penerima baru ditutup): " + from);
+                return;
+            }
             out.write(1);
             out.flush();
             synchronized (this) {
@@ -149,6 +186,10 @@ final class BeamServer {
             int type = in.readUnsignedByte();
             int len = in.readInt();
             if (len < 0 || len > MAX_LEN) throw new IOException("panjang pesan tidak wajar: " + len);
+            if (stopped) { // STOP sudah dikirim: buang sisa frame sampai HP menutup koneksi
+                while (len > 0) len -= Math.max(1, in.skipBytes(len)); // skipBytes boleh melewati lebih sedikit
+                continue;
+            }
             switch (type) {
                 case T_CONFIG: {
                     int w = in.readUnsignedShort();

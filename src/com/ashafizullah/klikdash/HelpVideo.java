@@ -18,23 +18,24 @@ import static com.ashafizullah.klikdash.HomeActivity.TEXT;
  * memindainya dengan HP dan menonton sambil mengikuti langkahnya di headunit. QR-nya dibuat tools/build_qr.py.
  */
 final class HelpVideo {
-    static final int NONE = -1, USB = 0, USB_ALLOW = 1, WIRELESS = 2;
+    static final int NONE = -1, USB = 0, USB_ALLOW = 1, WIRELESS = 2, LAPTOP = 3;
 
     /** Tanpa https:// untuk ditampilkan; QR-nya berisi URL lengkap (lihat tools/build_qr.py). */
-    private static final String[] URL = {"youtu.be/eVMA64kG_H8", "youtu.be/eVMA64kG_H8?t=62", "youtu.be/qDb4Irg5wok"};
-    private static final int[] QR = {R.drawable.qr_usb, R.drawable.qr_usb_allow, R.drawable.qr_wireless};
+    private static final String[] URL = {"youtu.be/eVMA64kG_H8", "youtu.be/eVMA64kG_H8?t=62", "youtu.be/qDb4Irg5wok",
+            "youtu.be/fZOYDMW89rU"};
+    private static final int[] QR = {R.drawable.qr_usb, R.drawable.qr_usb_allow, R.drawable.qr_wireless, R.drawable.qr_laptop};
 
     private HelpVideo() { }
 
     /**
-     * Video untuk hasil ADB yang gagal: belum diizinkan, USB debugging mati, atau port 5555 tertutup (videonya hanya
-     * untuk Android 11+, yang bisa membukanya lewat Wireless debugging).
+     * Video untuk hasil ADB yang gagal: belum diizinkan, USB debugging mati, atau port 5555 tertutup (Android 11+ lewat
+     * Wireless debugging; Android 10 ke bawah dari laptop dengan buka-adb-klikdash.bat).
      */
     static int forAdb(Context c, int adbResult) {
         if (adbResult == Tweaks.NOT_ALLOWED) return USB_ALLOW;
         if (adbResult != Tweaks.NO_ADB) return NONE;
         if (!Tweaks.debuggingOn(c)) return USB;
-        return AdbWifiService.supported() ? WIRELESS : NONE;
+        return AdbWifiService.supported() ? WIRELESS : LAPTOP;
     }
 
     /** Pesan gagal beserta QR videonya; tanpa video: notifikasi gagal biasa. */
@@ -56,12 +57,17 @@ final class HelpVideo {
 
     /** Kartu putih berisi QR, ajakan memindai, dan link pendeknya (untuk yang tidak bisa memindai). */
     static LinearLayout qrCard(Context c, int qrRes, String caption, String shortUrl) {
+        return qrCard(c, c.getDrawable(qrRes), caption, shortUrl);
+    }
+
+    /** Seperti di atas, untuk QR yang dibuat saat itu juga ({@link QrCode.QrDrawable}); {@code shortUrl} null: tanpa alamat. */
+    static LinearLayout qrCard(Context c, android.graphics.drawable.Drawable code, String caption, String shortUrl) {
         float dp = c.getResources().getDisplayMetrics().density;
         LinearLayout col = new LinearLayout(c);
         col.setOrientation(LinearLayout.VERTICAL);
         col.setGravity(Gravity.CENTER_HORIZONTAL);
         ImageView qr = new ImageView(c);
-        qr.setImageResource(qrRes);
+        qr.setImageDrawable(code);
         int pad = Math.round(10 * dp), size = Math.round(168 * dp);
         qr.setPadding(pad, pad, pad, pad);
         GradientDrawable bg = new GradientDrawable();
@@ -80,6 +86,7 @@ final class HelpVideo {
         scan.setGravity(Gravity.CENTER);
         scan.setPadding(0, Math.round(12 * dp), 0, 0);
         col.addView(scan, new LinearLayout.LayoutParams(size, LinearLayout.LayoutParams.WRAP_CONTENT));
+        if (shortUrl == null) return col;
         TextView url = new TextView(c);
         url.setText(shortUrl);
         url.setTypeface(mono);

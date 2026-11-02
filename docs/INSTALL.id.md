@@ -71,6 +71,18 @@ Wireless debugging. Bila dialog pairing tidak ditemukan, ketik port dan kodenya 
 `37215 482913`, port tertulis di bawah kode). Untuk **Hemat Daya**, ketuk pesan *ADB belum terbuka* di tab itu:
 port 5555 ikut dibuka sampai headunit dinyalakan ulang.
 
+**Android 10 ke bawah, dengan laptop Windows** (▶️ **[video tutorialnya](https://youtu.be/fZOYDMW89rU)**, 3 menit):
+tanpa mengetik perintah.
+
+1. Di laptop, unduh **[klikapps.pages.dev/adb](https://klikapps.pages.dev/adb)** (`buka-adb-klikdash.bat`). Kalau
+   browser memperingatkan, pilih **Keep**.
+2. Klik dua kali file-nya. Muncul *Windows protected your PC*? Klik **More info**, lalu **Run anyway**.
+3. Sambungkan headunit ke laptop dengan kabel USB, lalu izinkan **Allow USB debugging?** di headunit.
+4. Setelah tertulis **BERHASIL**, cabut kabelnya.
+
+File itu mengunduh ADB resmi Google sekali, lalu membuka port 5555 dan (bila firmware mengizinkan) membuatnya tetap
+terbuka setelah headunit dinyalakan ulang. Cara manualnya:
+
 Headunit tanpa menu Wireless debugging (atau Android 10 ke bawah) perlu komputer yang terpasang
 [Android platform-tools](https://developer.android.com/tools/releases/platform-tools):
 
@@ -143,7 +155,16 @@ tidak berfungsi.**
 - **Semua aplikasi:** ketuk pintasan **SEMUA**. Ketuk **CARI APLIKASI** lalu ketik sebagian namanya untuk
   menyaring; bila tinggal satu, tombol cari di keyboard langsung membukanya. Tekan lama sebuah aplikasi di sana untuk
   membuka infonya (misalnya untuk uninstall).
-- **Pintasan lebih besar:** ketuk **⚙**, lalu di **JUMLAH PINTASAN** pilih 9, 6, atau 4 (bawaan 12, termasuk SEMUA).
+- **Panel cepat:** ketuk **☰** di kiri atas home, atau geser dari tepi kiri layar: volume media (dengan **MUTE**),
+  kecerahan layar, **LAYAR TERBAGI**, **SCREENSAVER SEKARANG**, dan **⚙ PENGATURAN**. Di panduan ini **⚙ › …**
+  berarti Pengaturan yang dibuka dari sini; sebelum 1.9.8 lewat tombol ⚙ di home.
+- **Dua aplikasi dalam satu layar:** **☰ › LAYAR TERBAGI › PILIH 2 APLIKASI**, pilih aplikasi kiri, lalu kanan
+  (misalnya YouTube dan Maps). Geser pegangan di tengah untuk mengubah ukuran, atau ke tepi untuk menutup sisi itu.
+  Ketuk pegangannya untuk **✕** di tiap aplikasi (yang lain jadi layar penuh), **⇄ TUKAR**, dan **✕ TUTUP SEMUA**
+  (tutup keduanya dan kembali ke home). Butuh USB debugging, seperti Hemat Daya. Android 12 ke atas memakai jendela
+  berdampingan, yang di sebagian headunit baru bisa setelah dinyalakan ulang sekali; aplikasi yang tidak dibuat untuk
+  diubah ukurannya bisa tertutup saat pembatas digeser.
+- **Pintasan lebih besar:** buka **⚙**, lalu di **JUMLAH PINTASAN** pilih 9, 6, atau 4 (bawaan 12, termasuk SEMUA).
   Makin sedikit, makin besar jam, kecepatan, tanggal, dan jadwal sholat di kiri, juga pintasan, ikon, dan tulisannya. Pintasan yang tidak tampil tetap tersimpan dan muncul
   lagi bila jumlahnya ditambah.
 - **Suhu CPU** di kiri atas berwarna amber mulai 70 °C dan merah ("PANAS") mulai 85 °C.
@@ -153,7 +174,7 @@ tidak berfungsi.**
 Headunit terasa panas atau lambat? Sebagian aplikasi, misalnya Netflix atau Spotify, bisa berjalan diam-diam di
 latar walaupun tidak dibuka. Untuk membatasinya:
 
-1. Ketuk tombol **⚙** di atas layar home (di samping suhu CPU), lalu tab **HEMAT DAYA**.
+1. Buka **⚙** (☰ di kiri atas home, lalu **⚙ PENGATURAN**), lalu tab **HEMAT DAYA**.
 2. Ketuk **BATASI** di aplikasi yang tidak perlu jalan di latar. Tulisannya berubah menjadi **DIBATASI**.
    Aplikasi yang *SEDANG BERJALAN DI LATAR* tampil paling atas.
 
@@ -200,7 +221,7 @@ Anda sendiri.
 
 ## Pembaruan
 
-Buka **⚙ › LAUNCHER** lalu ketuk **CEK UPDATE**. Bila ada versi baru, ketuk **Unduh & pasang**: KlikDash
+Buka **⚙ › PEMBARUAN** lalu ketuk **CEK UPDATE**; sebelum 1.8.9 tombolnya ada di **⚙ › LAUNCHER**. Bila ada versi baru, ketuk **Unduh & pasang**: KlikDash
 memastikan unduhannya ditandatangani kunci yang sama, memasangnya, lalu terbuka lagi. Pengaturan dan audio yang
 sudah diunduh tetap ada.
 
@@ -208,7 +229,7 @@ sudah diunduh tetap ada.
 
 ## Kembali ke launcher bawaan
 
-Buka **⚙ › LAUNCHER**, ketuk **LAUNCHER BAWAAN**, lalu konfirmasi. KlikDash tetap terpasang dan bisa dijadikan
+Buka **⚙ › LAUNCHER › SISTEM**, ketuk **LAUNCHER BAWAAN**, lalu konfirmasi. KlikDash tetap terpasang dan bisa dijadikan
 tampilan utama lagi kapan saja.
 
 Mau menghapus KlikDash sepenuhnya? Buka **Pengaturan › Aplikasi › KlikDash › Uninstall**. Audio murattal

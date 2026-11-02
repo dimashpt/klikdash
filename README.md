@@ -38,7 +38,7 @@
 ## About
 
 KlikDash replaces the headunit's stock launcher with a static instrument-panel home screen (~0–1% CPU,
-~30 MB RAM). Plain Java, no libraries. The interface is in Indonesian or English (**⚙ › Launcher › BAHASA / LANGUAGE**), and the
+~30 MB RAM). Plain Java, no libraries. The interface is in Indonesian or English (**⚙ › Launcher › TAMPILAN / DISPLAY › BAHASA / LANGUAGE**), and the
 voice assistant has its own language setting. On the NWD K2401 it was built on, the
 stock launcher renders a 3D animation nonstop (~40% CPU).
 
@@ -53,16 +53,29 @@ stock launcher renders a 3D animation nonstop (~40% CPU).
   you drive (each reading repeats as many times as its count and the counter follows along).
 - **Player notch:** while the recitation, the dhikr or music from another app (Spotify, YouTube Music, ...) plays, a
   small bar at the top of the home shows what is playing, with pause and next.
+- **KlikBeam phone mirroring:** show your phone's screen on the headunit over Wi-Fi with the KlikBeam app
+  ([Android](https://play.google.com/store/apps/details?id=com.ashafizullah.klikbeam),
+  [iPhone](https://apps.apple.com/id/app/klikbeam/id6826742960)). Pair by scanning the QR code or typing the 6-digit
+  code (**⚙ › KLIKBEAM**). Full screen, or a floating window over Maps that you move with a finger and resize with two.
+  Turn on **BUKA OTOMATIS / OPEN AUTOMATICALLY** (off by default) and the receiver opens by itself when the phone
+  starts mirroring; closing it stops mirroring on the phone.
+- **Quick panel:** tap **☰** at the top left of the home screen, or swipe in from the left edge: media volume,
+  screen brightness, split screen, screensaver now, and **⚙ SETTINGS**.
+- **Split screen:** two apps side by side, for example YouTube and Maps (**☰ › SPLIT SCREEN**). Drag the handle in
+  the middle to resize; tap it to close one app, swap sides, or close both. Needs the headunit's USB debugging.
 - **Power saver:** stop apps such as Netflix or Spotify from running in the background.
 - **Voice assistant TANYA AI / ASK AI (optional):** say *"putar surat Yasin"*, *"navigasi ke masjid terdekat pakai
   Waze"* or *"buka Zlink"*. Bring your own Claude or OpenAI-compatible key; it listens and speaks with the
   headunit's free Android voice or with ElevenLabs, and looks up current information on the web (Claude's web
   search, or free TinyFish search for any provider). ▶️ **[Setup video](https://youtu.be/v9Bm6FzUKm8)** (6 minutes,
   Indonesian with subtitles).
-- **Screen lock:** a 4-digit PIN (**⚙ › Launcher › KUNCI LAYAR / SCREEN LOCK**) and a padlock on the home screen,
+- **Screen lock:** a 4-digit PIN (**⚙ › Launcher › HOME › KUNCI LAYAR / SCREEN LOCK**) and a padlock on the home screen,
   so children cannot open apps or change settings. The clock and prayer times stay visible.
-- **Settings & updates:** the ⚙ button on the home screen; four themes (AMBER, EMERALD, DAY, and GLOSSY with glass
-  panels); **CEK UPDATE / CHECK UPDATE** installs new versions without a computer, and the optional automatic check
+- **Screensaver:** the clock and date on black or your own photo, shown after the home screen has been untouched for
+  30 seconds to 10 minutes (**⚙ › Launcher › SCREENSAVER**). Never covers other apps such as Maps or CarPlay.
+- **Settings & updates:** **⚙ SETTINGS** in the quick panel (**☰**; before 1.9.8 a ⚙ button on the home screen), written
+  **⚙ › …** in this guide; four themes (AMBER, EMERALD, DAY, and GLOSSY with glass
+  panels), optionally switching between a day and a night theme with the sun; **CEK UPDATE / CHECK UPDATE** installs new versions without a computer, and the optional automatic check
   (off by default) offers them by itself when the headunit turns on.
 
 ## Install
@@ -81,7 +94,7 @@ stock launcher renders a 3D animation nonstop (~40% CPU).
 4. With internet on, open **Al-Qur'an** once and tap **UNDUH TEKS / DOWNLOAD**.
 5. Go through the [test-before-you-drive checklist](#disclaimer) with the car parked.
 
-Updating: **⚙ › Launcher › CEK UPDATE / CHECK UPDATE** (from 1.3.0), or install the new APK over the old one.
+Updating: **⚙ › PEMBARUAN / UPDATES › CEK UPDATE / CHECK UPDATE** (before 1.8.9 under **⚙ › Launcher**), or install the new APK over the old one.
 Settings and audio are kept.
 
 ## Supported devices
@@ -113,7 +126,7 @@ replaces the home screen, and the optional power saver only stops apps you pick 
 
 | Change | When | How to undo it |
 |---|---|---|
-| Default launcher `persist.nwd.launcher.default=com.ashafizullah.klikdash` (NWD) and HOME preference | When you tap **JADIKAN TAMPILAN UTAMA / SET AS HOME SCREEN** | **Settings › Launcher › LAUNCHER BAWAAN / STOCK LAUNCHER**, or `adb shell setprop persist.nwd.launcher.default com.android.launcher` |
+| Default launcher `persist.nwd.launcher.default=com.ashafizullah.klikdash` (NWD) and HOME preference | When you tap **JADIKAN TAMPILAN UTAMA / SET AS HOME SCREEN** | **Settings › Launcher › SISTEM / SYSTEM › LAUNCHER BAWAAN / STOCK LAUNCHER**, or `adb shell setprop persist.nwd.launcher.default com.android.launcher` |
 | ksmd turned off | Every boot, while KlikDash is the home screen (needs ADB on) | Switch back to the stock launcher or uninstall KlikDash, then reboot |
 | Zlink sent back to home when it opens by itself | First 3 minutes after boot or wake-up | Same as above |
 | Apps blocked from running in the background (`appops RUN_ANY_IN_BACKGROUND/RUN_IN_BACKGROUND ignore`) | Only for apps you switch on in **HEMAT DAYA / POWER SAVER**, or ask TANYA AI / ASK AI to | Tap the app again, or **KEMBALIKAN SEMUA / RESTORE ALL** |
@@ -124,6 +137,9 @@ The old NWD launcher is **not removed**. Its process stays because it also handl
 
 ## Notes
 
+- **Crash reports.** When KlikDash closes because of an error, it sends the error message, stack trace, version and
+  headunit model to the developer the next time it is online (no location or personal data; linked to a KlikBeam
+  account only if the headunit is linked). Kept 30 days. Turn it off under **SETTINGS › UPDATES › CRASH REPORTS**.
 - **Voice assistant privacy and cost.** What you say is transcribed by the recognizer chosen under
   **PENGENALAN SUARA / SPEECH RECOGNITION**: Android (the Google app, processed by Google) or ElevenLabs Scribe.
   The text, with the list of installed app names, the current time and, when a command needs it, the location,

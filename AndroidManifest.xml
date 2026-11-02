@@ -17,6 +17,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
+        android:name=".App"
         android:label="KlikDash"
         android:icon="@drawable/ic_launcher"
         android:theme="@style/KlikDash"
@@ -101,6 +102,16 @@
             android:excludeFromRecents="true"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density|locale|layoutDirection|fontScale" />
 
+        <!-- Layar terbagi Android 9-11 (SplitScreen): jangkar sesaat yang dibuka dari shell ADB -->
+        <activity
+            android:name=".SplitAnchor"
+            android:exported="true"
+            android:taskAffinity="com.ashafizullah.klikdash.split"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:resizeableActivity="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <receiver
             android:name=".PrayerAlarm"
             android:exported="false" />
@@ -121,6 +132,13 @@
         <!-- Buka ADB tanpa komputer lewat Wireless debugging (Android 11+); kode pairing diketik di notifikasinya -->
         <service
             android:name=".AdbWifiService"
+            android:exported="false" />
+
+        <!-- Akun KlikBeam: riwayat perjalanan dan lokasi parkir (TripService), hanya selama headunit terhubung ke akun -->
+        <service
+            android:name=".TripService"
+            android:directBootAware="true"
+            android:foregroundServiceType="location"
             android:exported="false" />
 
         <service

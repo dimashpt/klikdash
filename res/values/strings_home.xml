@@ -52,11 +52,18 @@
     <string name="home_default_ok">KlikDash sekarang tampilan utama</string>
     <string name="home_need_adb">Belum berhasil: ADB headunit tidak bisa dihubungi. Aktifkan USB debugging di Opsi pengembang, lalu coba lagi.</string>
     <string name="home_need_adb_port">Belum berhasil: USB debugging sudah aktif, tapi headunit ini belum membuka ADB untuk aplikasi (port 5555, umum di Android 11 ke atas). Buka sekali dari komputer dengan adb tcpip 5555 (langkahnya di panduan pemasangan), lalu coba lagi.</string>
+    <string name="home_need_adb_port_laptop">Belum berhasil: USB debugging sudah aktif, tapi port ADB 5555 tertutup. Di Android 10 ke bawah, buka sekali dari laptop Windows: unduh klikapps.pages.dev/adb, klik dua kali file-nya, sambungkan kabel USB, lalu izinkan di headunit.</string>
     <string name="home_adb_allow">Muncul pertanyaan \"Allow USB debugging?\": centang \"Always allow\", lalu ketuk OK.</string>
     <string name="home_adb_denied">Belum diizinkan. Ketuk tombolnya lagi, centang \"Always allow\" pada pertanyaan \"Allow USB debugging?\", lalu ketuk OK.</string>
     <string name="home_setprop_failed">Belum berhasil: headunit ini menolak mengganti tampilan utama lewat ADB.</string>
     <string name="home_restore_message">Kembali ke launcher bawaan? KlikDash tetap terpasang dan bisa dijadikan tampilan utama lagi dari tombol di home-nya.</string>
     <string name="home_restore_confirm">Kembali</string>
+
+    <!-- Mode aman setelah home crash berulang (lihat Guard) -->
+    <string name="guard_title">KlikDash berhenti beberapa kali saat dibuka</string>
+    <string name="guard_message">Supaya headunit tetap bisa dipakai, home dibuka dalam mode aman. Ketuk COBA LAGI, atau kembali ke launcher bawaan. Bila terus berulang, kirim foto layar ini ke pengembang.</string>
+    <string name="guard_retry">COBA LAGI</string>
+    <string name="guard_stock">LAUNCHER BAWAAN</string>
 
     <string name="home_notch_surah">SURAH %1$d</string>
     <string name="home_notch_dzikir">DZIKIR</string>
@@ -80,4 +87,26 @@
     <string name="prayer_alert_title">Waktu sholat</string>
     <string name="prayer_alert_message">Masuk waktu %1$s · %2$s</string>
     <string name="prayer_alert_notification">Waktu %1$s</string>
+    <string name="quick_title">PANEL CEPAT</string>
+    <string name="quick_volume">VOLUME</string>
+    <string name="quick_mute">MUTE</string>
+    <string name="quick_brightness">KECERAHAN</string>
+    <string name="quick_screen">LAYAR</string>
+    <string name="quick_saver">SCREENSAVER SEKARANG</string>
+    <string name="quick_brightness_allow">Izinkan KlikDash mengubah setelan sistem, lalu kembali untuk mengatur kecerahan.</string>
+    <string name="quick_settings">PENGATURAN</string>
+    <string name="quick_split">LAYAR TERBAGI</string>
+    <string name="quick_split_pick">PILIH 2 APLIKASI</string>
+    <string name="home_split_left">LAYAR TERBAGI · APLIKASI KIRI</string>
+    <string name="home_split_right">LAYAR TERBAGI · APLIKASI KANAN</string>
+    <string name="split_same">Pilih aplikasi lain untuk sisi kanan.</string>
+    <string name="split_swap">⇄  TUKAR</string>
+    <string name="split_unsupported">Headunit ini tidak mengizinkan dua aplikasi dalam satu layar.</string>
+    <string name="split_need_reboot">Jendela berdampingan baru aktif setelah headunit dinyalakan ulang. Nyalakan ulang sekali, lalu coba lagi.</string>
+    <string name="split_hint">Ketuk pegangan di tengah untuk menutup salah satu aplikasi atau menukar sisi. Geser untuk mengubah ukuran, ke tepi untuk menutup.</string>
+    <string name="split_close_all">✕  TUTUP SEMUA</string>
+    <string name="split_warn_title">Dua aplikasi sekaligus bisa bikin lambat</string>
+    <string name="split_warn_text">Menjalankan dua aplikasi bersamaan butuh RAM dan prosesor lebih. Di sebagian headunit, terutama yang RAM-nya kecil, layar bisa tersendat atau salah satu aplikasi tertutup sendiri. Hasilnya tergantung spesifikasi headunit masing-masing. Lanjutkan?</string>
+    <string name="split_warn_go">LANJUTKAN</string>
+    <string name="split_warn_never">JANGAN INGATKAN LAGI</string>
 </resources>

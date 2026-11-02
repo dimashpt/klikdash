@@ -10,7 +10,7 @@ klikdash/
 ├── build.sh                  build + install on the headunit
 ├── klikdash.keystore         APK signing key (do not lose it, see Notes)
 ├── src/com/ashafizullah/klikdash/   grouped by feature; each class starts with a comment explaining it
-│   ├── Home*.java, Hijri, Welcome, ScreenLock   launcher: tiles, drawer, clock panel, Hijri date, welcome card, PIN lock
+│   ├── Home*.java, Hijri, Welcome, ScreenLock, Screensaver   launcher: tiles, drawer, clock panel, Hijri date, welcome card, PIN lock, screensaver
 │   ├── Prayer*.java, Clock      prayer times (Kemenag RI parameters), prayer alerts, clock set from GPS
 │   ├── Quran*.java              mushaf, background recitation player
 │   ├── MediaNotch, MediaListener   home player notch: recitation, dhikr, other apps' music (MediaSession)
@@ -19,7 +19,7 @@ klikdash/
 │   ├── Ask*, Ai*.java           TANYA AI: voice, car commands, profiles & encrypted API keys, settings tab
 │   ├── Beam*.java               KlikBeam (beta): phone screen mirroring over WiFi
 │   ├── Theme, Lang, Key, Notice   theme palette, interface language, buttons, notices
-│   └── Updater, UpdatedReceiver, HomeSwitch, Tweaks, Compat   updates, home screen switch, local ADB, Android 7–8
+│   └── Updater, UpdatedReceiver, HomeSwitch, Guard, Tweaks, Compat   updates, home screen switch, safe mode on repeated crashes, local ADB, Android 7–8
 ├── res/                      theme, vector icons, ISRG root certificates for Android 7.0 (network_security.xml)
 ├── assets/
 │   ├── dzikir.json           morning & evening dhikr, built from KlikBand (tools/build_dzikir.mjs)
@@ -120,7 +120,7 @@ python3 -I tools/build_quran.py --en assets/quran-en.txt
 ## Translations
 
 The interface is in Indonesian (`res/values/strings_*.xml`, the default) and English
-(`res/values-en/strings_*.xml`), chosen in **⚙ › Launcher › BAHASA** and not from the system language (`Lang.java`).
+(`res/values-en/strings_*.xml`), chosen in **⚙ › Launcher › TAMPILAN › BAHASA** and not from the system language (`Lang.java`).
 - Every new piece of UI text goes into **both** folders under the same name. Use positional arguments
   (`%1$s`) and `<plurals>` for counts. Never compare or save displayed text: keep a separate key.
 - Activities and `QuranService` wrap their context in `attachBaseContext`. Receivers and the application context

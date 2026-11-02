@@ -38,7 +38,7 @@
 ## Tentang
 
 KlikDash menggantikan launcher bawaan headunit dengan home statis bergaya panel instrumen (~0–1% CPU, ~30 MB RAM).
-Ditulis dengan Java murni tanpa library. Tampilan berbahasa Indonesia atau Inggris (**⚙ › Launcher › BAHASA**),
+Ditulis dengan Java murni tanpa library. Tampilan berbahasa Indonesia atau Inggris (**⚙ › Launcher › TAMPILAN › BAHASA**),
 dan asisten suara punya pengaturan bahasanya sendiri. Di NWD K2401 tempat KlikDash dikembangkan, launcher bawaannya terus
 merender animasi 3D (~40% CPU).
 
@@ -53,14 +53,29 @@ merender animasi 3D (~40% CPU).
   menyetir (tiap bacaan diulang sebanyak hitungannya dan penghitung ikut bertambah).
 - **Notch pemutar:** selama murattal, dzikir, atau musik aplikasi lain (Spotify, YouTube Music, ...) diputar, bilah
   kecil di atas home menampilkan yang diputar, dengan tombol jeda dan berikutnya.
+- **KlikBeam (mirror HP):** tampilkan layar HP di headunit lewat Wi-Fi dengan aplikasi KlikBeam
+  ([Android](https://play.google.com/store/apps/details?id=com.ashafizullah.klikbeam),
+  [iPhone](https://apps.apple.com/id/app/klikbeam/id6826742960)). Pairing dengan memindai QR atau mengetik kode 6 angka
+  (**⚙ › KLIKBEAM**). Layar penuh, atau jendela melayang di atas Maps yang bisa digeser dan diubah ukurannya dengan dua
+  jari. Nyalakan **BUKA OTOMATIS** (bawaan mati) supaya penerima terbuka sendiri saat HP mulai
+  mirror; menutupnya menghentikan mirror di HP.
+- **Panel cepat:** ketuk **☰** di kiri atas home, atau geser dari tepi kiri layar: volume media, kecerahan layar,
+  layar terbagi, screensaver sekarang, dan **⚙ PENGATURAN**.
+- **Layar terbagi:** dua aplikasi berdampingan, misalnya YouTube dan Maps (**☰ › LAYAR TERBAGI**). Geser pegangan
+  di tengah untuk mengubah ukuran; ketuk untuk menutup salah satu, menukar sisi, atau menutup keduanya. Butuh USB
+  debugging headunit.
 - **Hemat Daya:** larang aplikasi seperti Netflix atau Spotify berjalan di latar.
 - **Asisten suara TANYA AI (opsional):** ucapkan *"putar surat Yasin"*, *"navigasi ke masjid terdekat pakai Waze"*,
   atau *"buka Zlink"*. Pakai key Claude atau OpenAI-compatible sendiri; mendengar dan berbicara dengan suara
   Android headunit (gratis) atau ElevenLabs, dan mencari info terkini di web (pencarian Claude, atau pencarian
   TinyFish yang gratis untuk penyedia mana pun). ▶️ **[Video cara mengaturnya](https://youtu.be/v9Bm6FzUKm8)** (6 menit, dengan subtitle).
-- **Kunci layar:** PIN 4 angka (**⚙ › Launcher › KUNCI LAYAR**) dan ikon gembok di home, supaya anak-anak tidak
+- **Kunci layar:** PIN 4 angka (**⚙ › Launcher › HOME › KUNCI LAYAR**) dan ikon gembok di home, supaya anak-anak tidak
   membuka aplikasi atau mengubah pengaturan. Jam dan jadwal sholat tetap tampil.
-- **Pengaturan & pembaruan:** tombol ⚙ di home; empat tema (AMBER, ZAMRUD, SIANG, dan KILAP berpanel kaca);
+- **Screensaver:** jam dan tanggal di atas latar hitam atau foto sendiri, muncul bila home tidak disentuh 30 detik
+  sampai 10 menit (**⚙ › Launcher › SCREENSAVER**). Tidak pernah menutupi aplikasi lain seperti Maps atau CarPlay.
+- **Pengaturan & pembaruan:** **⚙ PENGATURAN** di panel cepat (**☰**; sebelum 1.9.8 tombol ⚙ di home), ditulis
+  **⚙ › …** di panduan ini; empat tema (AMBER, ZAMRUD, SIANG, dan KILAP berpanel kaca),
+  yang bisa berganti sendiri antara tema siang dan malam mengikuti matahari (opsional);
   **CEK UPDATE** memasang versi baru tanpa komputer, dan **CEK UPDATE OTOMATIS** (opsional, bawaan mati)
   menawarkannya sendiri saat headunit menyala.
 
@@ -79,7 +94,7 @@ merender animasi 3D (~40% CPU).
 4. Saat ada internet, buka **Al-Qur'an** sekali dan ketuk **UNDUH TEKS**.
 5. Jalankan [daftar uji sebelum berkendara](#disclaimer) dalam keadaan mobil diam.
 
-Memperbarui: **⚙ › Launcher › CEK UPDATE** (mulai 1.3.0), atau pasang APK baru di atas yang lama. Pengaturan dan
+Memperbarui: **⚙ › PEMBARUAN › CEK UPDATE** (sebelum 1.8.9 di **⚙ › Launcher**), atau pasang APK baru di atas yang lama. Pengaturan dan
 audio tetap ada.
 
 ## Perangkat yang didukung
@@ -112,7 +127,7 @@ di latar.
 
 | Perubahan | Kapan | Cara mengembalikan |
 |---|---|---|
-| Launcher default `persist.nwd.launcher.default=com.ashafizullah.klikdash` (NWD) dan preferensi HOME | Saat Anda mengetuk **JADIKAN TAMPILAN UTAMA** | **Pengaturan › Launcher › LAUNCHER BAWAAN**, atau `adb shell setprop persist.nwd.launcher.default com.android.launcher` |
+| Launcher default `persist.nwd.launcher.default=com.ashafizullah.klikdash` (NWD) dan preferensi HOME | Saat Anda mengetuk **JADIKAN TAMPILAN UTAMA** | **Pengaturan › Launcher › SISTEM › LAUNCHER BAWAAN**, atau `adb shell setprop persist.nwd.launcher.default com.android.launcher` |
 | ksmd dimatikan | Setiap boot, selama KlikDash jadi tampilan home (butuh ADB aktif) | Kembali ke launcher bawaan atau uninstall KlikDash, lalu reboot |
 | Zlink dikembalikan ke home bila terbuka sendiri | 3 menit pertama setelah boot atau bangun dari tidur | Sama seperti di atas |
 | Aplikasi dilarang jalan di latar (`appops RUN_ANY_IN_BACKGROUND/RUN_IN_BACKGROUND ignore`) | Hanya untuk aplikasi yang Anda nyalakan di **HEMAT DAYA**, atau atas permintaan ke TANYA AI | Ketuk aplikasinya lagi, atau **KEMBALIKAN SEMUA** |
@@ -123,6 +138,9 @@ Launcher NWD lama **tidak dihapus**. Prosesnya tetap ada karena juga menangani i
 
 ## Catatan
 
+- **Laporan crash.** Bila KlikDash tertutup karena error, pesan error, jejak kode, versi, dan model headunit dikirim
+  ke pengembang saat online berikutnya (tanpa lokasi atau data pribadi; dikaitkan ke akun KlikBeam hanya bila
+  headunit terhubung). Disimpan 30 hari. Matikan lewat **PENGATURAN › PEMBARUAN › LAPORAN CRASH**.
 - **Privasi dan biaya asisten suara.** Ucapan Anda ditranskripsi oleh pengenal yang dipilih di **Pengenalan
   suara**: Android (aplikasi Google, diproses Google) atau ElevenLabs Scribe. Teksnya, beserta
   daftar nama aplikasi terpasang, jam sekarang, dan lokasi bila perintahnya butuh, dikirim ke penyedia AI profil
